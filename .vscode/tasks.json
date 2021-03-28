@@ -7,7 +7,7 @@
     "type": "shell",
     "command": "dbus-send",
     "args": [
-      "--session ",
+      "--session",
       "--dest=org.Cinnamon.LookingGlass",
       "--type=method_call",
       "/org/Cinnamon/LookingGlass",
