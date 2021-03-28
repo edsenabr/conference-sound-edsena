@@ -1,0 +1,6 @@
+{
+	"description": "Manages Mic Mute",
+	"uuid": "simple-sound@edsena",
+	"name": "Simple Sound",
+	"max-instances": "-1"
+}
