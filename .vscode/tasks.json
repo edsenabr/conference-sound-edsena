@@ -12,7 +12,7 @@
       "--type=method_call",
       "/org/Cinnamon/LookingGlass",
       "org.Cinnamon.LookingGlass.ReloadExtension",
-      "string:'simple-sound@edsena'",
+      "string:'conference-sound-edsena'",
       "string:'APPLET'",
     ],
     "group": "build",
