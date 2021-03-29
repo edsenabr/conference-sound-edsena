@@ -32,7 +32,7 @@ const setup = {
 
 class SimpleSoundApplet extends MultiIconApplet {
 	constructor(orientation, panelHeight, instanceId) {
-		super(orientation, panelHeight, instanceId);
+		super(orientation, panelHeight, instanceId, ['_input', '_output']);
 		this.set_applet_icon_symbolic_name('_input','audio-input-microphone-symbolic');
 		this.set_applet_icon_symbolic_name('_output','audio-headset-symbolic');
 		this.mute_switch = [];
@@ -197,14 +197,14 @@ class SimpleSoundApplet extends MultiIconApplet {
 		let inactive = null;
 		if (device.origin == 'Plantronics Blackwire 5220 Series') {
 			icon = "audio-headset-symbolic";
-			control  = setup.HEADSET.control;
+			active  = setup.HEADSET.control;
 			inactive = setup.SPEAKERS.control;
 		} else {
 			icon = "audio-speakers-symbolic"
 			control  = setup.SPEAKERS.control;
 			inactive = setup.HEADSET.control;
 		}
-		control.setShowDot(true);
+		active.setShowDot(true);
 		inactive.setShowDot(false);
 		this.set_applet_icon_symbolic_name('_output', icon);
 		this.mute_switch['_output'].setIconSymbolicName(icon);
