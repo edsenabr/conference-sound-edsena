@@ -1,6 +1,6 @@
 {
-	"description": "Manages Mic Mute",
-	"uuid": "simple-sound@edsena",
-	"name": "Simple Sound",
-	"max-instances": "-1"
+	"description": "An applet to control the sound sub-system focused on conference call needs. ",
+	"uuid": "conference-sound@edsena",
+	"name": "Conference Sound",
+	"max-instances": "1"
 }
