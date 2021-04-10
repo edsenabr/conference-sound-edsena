@@ -2,23 +2,29 @@
   // See https://go.microsoft.com/fwlink/?LinkId=733558
   // for the documentation about the tasks.json format
   "version": "2.0.0",
-  "tasks": [{
-    "label": "Restart Applet",
-    "type": "shell",
-    "command": "dbus-send",
-    "args": [
-      "--session",
-      "--dest=org.Cinnamon.LookingGlass",
-      "--type=method_call",
-      "/org/Cinnamon/LookingGlass",
-      "org.Cinnamon.LookingGlass.ReloadExtension",
-      "string:'conference-sound-edsena'",
-      "string:'APPLET'",
-    ],
-    "group": "build",
-    "presentation": {
-      "reveal": "silent",
-      "panel": "shared",
+  "tasks": [
+    {
+      "label": "Restart Applet",
+      "type": "shell",
+      "command": "dbus-send",
+      "args": [
+        "--session",
+        "--dest=org.Cinnamon.LookingGlass",
+        "--type=method_call",
+        "/org/Cinnamon/LookingGlass",
+        "org.Cinnamon.LookingGlass.ReloadExtension",
+        "string:'conference-sound-edsena'",
+        "string:'APPLET'"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
     }
-  }]
+  ]
 }

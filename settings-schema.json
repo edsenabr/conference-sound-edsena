@@ -1,0 +1,54 @@
+{
+	"section1": {
+		"type": "section",
+		"description": "Headset"
+	},
+	"headset_input": {
+		"type": "combobox",
+		"options": {
+			"Toggle Mute": "mute",
+			"Toggle Mute output": "out_mute",
+			"Toggle Mute input": "in_mute",
+			"Toggle Play / Pause": "player"
+		},
+		"default": "mute",
+		"description": "Input Device"
+	},
+	"headset_output": {
+		"type": "combobox",
+		"options": {
+			"Toggle Mute": "mute",
+			"Toggle Mute output": "out_mute",
+			"Toggle Mute input": "in_mute",
+			"Toggle Play / Pause": "player"
+		},
+		"default": "mute",
+		"description": "Output Device"
+	},
+	"section2": {
+		"type": "section",
+		"description": "Speakers"
+	},
+	"speakers_input": {
+		"type": "combobox",
+		"options": {
+			"Toggle Mute": "mute",
+			"Toggle Mute output": "out_mute",
+			"Toggle Mute input": "in_mute",
+			"Toggle Play / Pause": "player"
+		},
+		"default": "mute",
+		"description": "Input Device"
+	},
+	"speakers_output": {
+		"type": "combobox",
+		"options": {
+			"Toggle Mute": "mute",
+			"Toggle Mute output": "out_mute",
+			"Toggle Mute input": "in_mute",
+			"Toggle Play / Pause": "player"
+		},
+		"default": "mute",
+		"description": "Device to be used as output on the Speakers setup."
+	}
+}

@@ -2,18 +2,27 @@ const Applet = imports.ui.applet;
 const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 
-function log(error) {
+function log(message) {
 	// global.logError(error);
 }
 
+function error(message) {
+	
+}
+
+function debug(message) {
+
+}
+
 class MultiIconApplet extends imports.ui.applet.Applet {
-	constructor(orientation, panel_height, instance_id) {
+	constructor(orientation, panel_height, instance_id, icons) {
 			super(orientation, panel_height, instance_id);
 			log('constructor::init');
-			this._applet_icon_boxes = new Array(2);   //array of containers
-			this._applet_icons = new Array(2);        //array of icons
-			this._applet_icon_boxes['_input'] = this._init_icon_box();
-			this._applet_icon_boxes['_output'] = this._init_icon_box();
+			this._applet_icon_boxes = new Array(icons.lengh);   //array of containers
+			this._applet_icons = new Array(icons.lengh);        //array of icons
+			icons.forEach(icon => {
+				this._applet_icon_boxes[icon] = this._init_icon_box();
+			});
 			log('constructor::done');
 	}
 
@@ -37,68 +46,66 @@ class MultiIconApplet extends imports.ui.applet.Applet {
 				});
 		this._applet_icon_boxes[name].set_child(this._applet_icons[name]);
 		log('_ensureIcon::done');
+		return this._applet_icons[name];
 	}
 
 	set_applet_icon_name (name, icon_name) {
-			this._ensureIcon(name);
-			this._applet_icons[name].set_icon_name(icon_name);
-			this._applet_icons[name].set_icon_type(St.IconType.FULLCOLOR);
-			this._setStyle(name);
+			let icon = this._ensureIcon(name);
+			icon.set_icon_name(icon_name);
+			icon.set_icon_type(St.IconType.FULLCOLOR);
+			this._setStyle(icon);
 	}
 
 	set_applet_icon_symbolic_name (name, icon_name) {
 		log(`set_applet_icon_symbolic_name::init for -> ${name}`);
-		this._ensureIcon(name);
-		this._applet_icons[name].set_icon_name(icon_name);
-		this._applet_icons[name].set_icon_type(St.IconType.SYMBOLIC);
-		this._setStyle(name);
+		let icon = this._ensureIcon(name);
+		icon.set_icon_name(icon_name);
+		icon.set_icon_type(St.IconType.SYMBOLIC);
+		this._setStyle(icon);
 		log('set_applet_icon_symbolic_name::done');
 	}
 
 	set_applet_icon_path (name, icon_path) {
-			this._ensureIcon(name);
+			let icon = this._ensureIcon(name);
 
 			try {
 					let file = Gio.file_new_for_path(icon_path);
-					this._applet_icons[name].set_gicon(new Gio.FileIcon({ file: file }));
-					this._applet_icons[name].set_icon_type(St.IconType.FULLCOLOR);
-					this._setStyle(name);
+					icon.set_gicon(new Gio.FileIcon({ file: file }));
+					icon.set_icon_type(St.IconType.FULLCOLOR);
+					this._setStyle(icon);
 			} catch (e) {
 					global.log(e);
 			}
 	}
 
 	set_applet_icon_symbolic_path(name, icon_path) {
-			this._ensureIcon(name);
+			let icon = this._ensureIcon(name);
 			try {
 					let file = Gio.file_new_for_path(icon_path);
-					this._applet_icons[name].set_gicon(new Gio.FileIcon({ file: file }));
-					this._applet_icons[name].set_icon_type(St.IconType.SYMBOLIC);
-					this._setStyle(name);
+					icon.set_gicon(new Gio.FileIcon({ file: file }));
+					icon.set_icon_type(St.IconType.SYMBOLIC);
+					this._setStyle(icon);
 			} catch (e) {
 					global.log(e);
 			}
 	}
 
-	_setStyle(name) {
-			let icon_type = this._applet_icons[name].get_icon_type();
+	_setStyle(icon) {
+			let icon_type = icon.get_icon_type();
 
 			if (icon_type === St.IconType.FULLCOLOR) {
-					this._applet_icons[name].set_icon_size(this.getPanelIconSize(St.IconType.FULLCOLOR));
-					this._applet_icons[name].set_style_class_name('applet-icon');
+					icon.set_icon_size(this.getPanelIconSize(St.IconType.FULLCOLOR));
+					icon.set_style_class_name('applet-icon');
 			} else {
-					this._applet_icons[name].set_icon_size(this.getPanelIconSize(St.IconType.SYMBOLIC));
-					this._applet_icons[name].set_style_class_name('system-status-icon');
+					icon.set_icon_size(this.getPanelIconSize(St.IconType.SYMBOLIC));
+					icon.set_style_class_name('system-status-icon');
 			}
 	}
 
 	on_panel_height_changed_internal() {
-		if (this._applet_icons['_input'])
-			this._setStyle('_input');
-
-		if (this._applet_icons['_output'])
-			this._setStyle('_output');
-
+		this._applet_icons.forEach((icon) => {
+			this._setStyle(icon);
+		})
 		this.on_panel_height_changed();
 	}
 

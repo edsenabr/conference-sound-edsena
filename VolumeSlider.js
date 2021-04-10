@@ -84,7 +84,7 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 	}
 
 	_onScrollEvent(actor, event) {
-		global.log(`slider._onScrollEvent:: ${actor}`);
+		// global.log(`slider._onScrollEvent:: ${actor}`);
 			let step = 
 				(event.get_scroll_direction() == Clutter.ScrollDirection.UP) ?
 				VOLUME_ADJUSTMENT_STEP:

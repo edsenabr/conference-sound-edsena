@@ -3,8 +3,10 @@ const Clutter = imports.gi.Clutter;
 const Cvc = imports.gi.Cvc;
 const Gio = imports.gi.Gio;
 const Main = imports.ui.main;
+const MessageTray = imports.ui.messageTray;
 const Lang = imports.lang;
 const PopupMenu = imports.ui.popupMenu;
+const Settings = imports.ui.settings;
 const St = imports.gi.St;
 const Util = imports.misc.util;
 const {VolumeSlider} = require('./VolumeSlider');
@@ -19,20 +21,40 @@ const setup = {
 		"_output": "::Auto-Falantes com echo-canceling",
 		"_input": "::Boya BY-MM1",
 		"name": "Speakers",
-		"label": "Auto-Falantes + Boya BY-MM1"
+		"label": "Auto-Falantes + Boya BY-MM1",
+		"icon": "audio-headset-symbolic"
 	},
 	HEADSET: {
 		"_output": "Plantronics Blackwire 5220 Series::Headphones",
 		"_input": "Plantronics Blackwire 5220 Series::Headset Microphone",
 		"name": "Headset",
 		"label": "Plantronics Blackwire 5220 Series",
+		"icon": "audio-speakers-symbolic"
+	},
+	lookup: function (device, type) {
+		let full_name = `${device.origin}::${device.description}`;
+		switch (full_name){
+			case this.HEADSET[type]:
+				return this.HEADSET;
+			;;
+			case this.SPEAKERS[type]:
+				return this.SPEAKERS;
+			;;
+			default:
+				return undefined;
+		}
+	},
+	update: function (full_name, user_data) {
+		user_data.setup[user_data.type] = full_name
 	}
 };
 
 
+
 class SimpleSoundApplet extends MultiIconApplet {
-	constructor(orientation, panelHeight, instanceId) {
+	constructor(metadata, orientation, panelHeight, instanceId) {
 		super(orientation, panelHeight, instanceId, ['_input', '_output']);
+		this.metadata = metadata;
 		this.set_applet_icon_symbolic_name('_input','audio-input-microphone-symbolic');
 		this.set_applet_icon_symbolic_name('_output','audio-headset-symbolic');
 		this.mute_switch = [];
@@ -49,6 +71,15 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.setupListeners();
 
 		this._setKeybinding();
+		this.setupConfiguration();
+	}
+
+	setupConfiguration () {
+		this.settings = new Settings.AppletSettings(this, this.metadata.uuid, this.instanceId);
+		this.settings.bind("headset_input", "headset_input", setup.update, {type: '_input', setup: setup.HEADSET});
+		this.settings.bind("headset_output", "headset_output", setup.update, {type: '_output', setup: setup.HEADSET});
+		this.settings.bind("speakers_input", "speakers_input", setup.update, {type: '_input', setup: setup.SPEAKERS});
+		this.settings.bind("speakers_output", "speakers_output", setup.update, {type: '_output', setup: setup.SPEAKERS});
 	}
 
 	drawMenu(orientation) {
@@ -89,8 +120,6 @@ class SimpleSoundApplet extends MultiIconApplet {
 	_drawDevice(setup){
 		let device = new PopupMenu.PopupMenuItem(setup.name);
 		let bin = new St.Bin({ x_align: St.Align.END, style_class: 'popup-active-menu-item' });
-		// let label = new St.Label({ text: setup.label });
-		// bin.add_actor(label);
 		device.addActor(bin, { expand: false, span: -1, align: St.Align.END });
 		device.activate = () => this._toggle_setup(setup);
 		setup.control = device;
@@ -132,7 +161,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_setKeybinding() {
-		Main.keybindingManager.addHotKey("toggle-mute-" + this.instance_id, "Pause", Lang.bind(this, () => this._toggle_mute('_input')));
+		// Main.keybindingManager.addHotKey("toggle-mute-" + this.instance_id, "Pause", Lang.bind(this, () => this._toggle_mute('_input')));
 		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", Lang.bind(this, () => this._toggle_setup(setup.HEADSET)));
 		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", Lang.bind(this, () => this._toggle_setup(setup.SPEAKERS)));
 	}
@@ -172,40 +201,50 @@ class SimpleSoundApplet extends MultiIconApplet {
 		let device = this._control[`lookup${type}_id`](id);
 		let full_name = `${device.origin}::${device.description}`;
 		this.devices[type][full_name] = device;
-		// global.logError(`_onDeviceAdded:: (${type}) ${full_name} ${this.devices[type][full_name]}`);
+		let options = this.generateSettingsOptions(type);
+		this.settings.setOptions(`headset${type}`, options);
+		this.settings.setOptions(`speakers${type}`, options);
+		global.log(`_onDeviceAddedd::id=${id}, card=${device.get_card().get_name()} =>${full_name}`);
 	}
 
+	generateSettingsOptions(type) {
+		let options = {};
+		for (let device in this.devices[type]) {
+			options[device] = device;
+		}
+		return options;
+	}
 
 	_onDeviceUpdate(control, id, type) {
 		let device = this._control[`lookup${type}_id`](id);
 		let stream =  this._control.get_stream_from_device(device);
-		this.stream[type] = stream;
-		global.log(`_onDeviceUpdate:: ${type} ${device.origin}::${device.description} is ${stream.is_muted}`);
-
+		let full_name = `${device.origin}::${device.description}`;
 
 		if (this.mute_id[type]) {
 			this.stream[type].disconnect(this.mute_id[type]);
 			this.mute_id[type] = 0;
 		}
+		this.stream[type] = stream;
 
-		if (this.stream[type]) {
-			this.mute_id[type] = this.stream[type].connect('notify::is-muted', () => this._onMutedChanged(type));
-		}
-
+		global.log(`_onDeviceUpdate:: id=${id}, card=${device.port_name} => ${full_name} is muted ? ${stream.is_muted}`);
+		this.mute_id[type] = stream.connect('notify::is-muted', () => this._onMutedChanged(type));
+		
 		let icon = '';
 		let active = null;
 		let inactive = null;
-		if (device.origin == 'Plantronics Blackwire 5220 Series') {
+		if (full_name == setup.HEADSET._output) {
 			icon = "audio-headset-symbolic";
 			active  = setup.HEADSET.control;
 			inactive = setup.SPEAKERS.control;
 		} else {
-			icon = "audio-speakers-symbolic"
-			control  = setup.SPEAKERS.control;
+			icon = "audio-speakers-symbolic";
+			active  = setup.SPEAKERS.control;
 			inactive = setup.HEADSET.control;
 		}
+
 		active.setShowDot(true);
 		inactive.setShowDot(false);
+		Main.osdWindowManager.show(-1, Gio.Icon.new_for_string(icon), undefined);
 		this.set_applet_icon_symbolic_name('_output', icon);
 		this.mute_switch['_output'].setIconSymbolicName(icon);
 		this.volume_selection['_output'].icon.set_icon_name(icon);
@@ -222,7 +261,6 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_onMutedChanged(property) {
-		global.log(`_mutedChanged::init (${property}) >> ${this.stream[property].is_muted}`)
 
 		this.mute_switch[property].setToggleState(this.stream[property].is_muted);
 		let defaultColor = this.actor.get_theme_node().get_foreground_color();
@@ -239,7 +277,6 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 		this._applet_icons[property].style = style;
 		this.volume_selection[property].icon.style = style;
-		global.log(`_mutedChanged::done`)
 
 	}
 
@@ -250,5 +287,5 @@ class SimpleSoundApplet extends MultiIconApplet {
 }
 
 function main(metadata, orientation, panelHeight, instanceId) {
-	return new SimpleSoundApplet(orientation, panelHeight, instanceId);
+	return new SimpleSoundApplet(metadata, orientation, panelHeight, instanceId);
 }
