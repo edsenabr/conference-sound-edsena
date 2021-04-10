@@ -193,7 +193,6 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.stream[property].change_is_muted(
 			!this.stream[property].is_muted
 		);
-		this.mute_switch[property].setToggleState(this.stream[property].is_muted);
 		global.log(`_toggle_mute:: done`)
 	}
 
