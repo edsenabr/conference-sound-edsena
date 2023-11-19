@@ -4,7 +4,7 @@ const PopupMenu = imports.ui.popupMenu;
 const St = imports.gi.St;
 const Tooltips = imports.ui.tooltips;
 
-var VOLUME_ADJUSTMENT_STEP = 0.04; /* Volume adjustment step in % */
+var VOLUME_ADJUSTMENT_STEP = 0.05; /* Volume adjustment step in % */
 
 
 class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
@@ -63,7 +63,7 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 		this._slider.queue_repaint();
 
 		let muted;
-		let volume = value * this.volumeMax;
+		let volume = Math.ceil( value * this.volumeMax);
 
 		if(value < 0.005) {
 				volume = 0;
@@ -76,7 +76,7 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 		}
 		this.stream.volume = volume;
 		this.stream.push_volume();
-
+		this._value = value;
 		// mute eh responsabilidade do applet
 		if(this.stream.is_muted !== muted) {
 			this.emit("toggle-mute", muted);
@@ -84,13 +84,18 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 	}
 
 	_onScrollEvent(actor, event) {
-		// global.log(`slider._onScrollEvent:: ${actor}`);
-			let step = 
-				(event.get_scroll_direction() == Clutter.ScrollDirection.UP) ?
-				VOLUME_ADJUSTMENT_STEP:
-				-VOLUME_ADJUSTMENT_STEP
-			;
-			this._changeValue(step);
+		const direction = event.get_scroll_direction();
+        if (direction == Clutter.ScrollDirection.SMOOTH) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+		global.log(`slider._onScrollEvent:: ${actor}`);
+		let step = 
+			(direction == Clutter.ScrollDirection.UP) ?
+			VOLUME_ADJUSTMENT_STEP:
+			-VOLUME_ADJUSTMENT_STEP
+		;
+		this._changeValue(step);
 	}
 
 	_onKeyPressEvent(actor, event) {
