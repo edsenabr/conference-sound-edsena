@@ -11,6 +11,7 @@ const St = imports.gi.St;
 const Util = imports.misc.util;
 const {VolumeSlider} = require('./VolumeSlider');
 const {MultiIconApplet} = require('./MultiIconApplet');
+const {MediaPlayer} = require('./MediaPlayer');
 const {SignalManager} = imports.misc.signalManager;
 
 
@@ -42,6 +43,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 		this._setKeybinding();
 		this.setupConfiguration();
+
+		this.player = new MediaPlayer(this);
 	}
 
 	setupConfiguration () {
@@ -63,6 +66,10 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.menuManager = new PopupMenu.PopupMenuManager(this);
 		this.menu = new Applet.AppletPopupMenu(this, orientation);
 		this.menuManager.addMenu(this.menu);
+
+        this._chooseActivePlayerItem = new PopupMenu.PopupSubMenuMenuItem(_("Choose player controls"));
+        this.menu.addMenuItem(this._chooseActivePlayerItem);
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 		// botoes de mute
 		this.menu.addMenuItem(this.mute_switch['_input']);
@@ -147,6 +154,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.settings.finalize();
 		this.signals.disconnectAllSignals();
 		this.menu.destroy();
+		this.player.destroy();
 	}
 
 
