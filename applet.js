@@ -11,45 +11,12 @@ const St = imports.gi.St;
 const Util = imports.misc.util;
 const {VolumeSlider} = require('./VolumeSlider');
 const {MultiIconApplet} = require('./MultiIconApplet');
+const {SignalManager} = imports.misc.signalManager;
 
 
 const CINNAMON_DESKTOP_SOUNDS = "org.cinnamon.desktop.sound";
 const MAXIMUM_VOLUME_KEY = "maximum-volume";
-const VOLUME_ADJUSTMENT_STEP = 0.04; /* Volume adjustment step in % */
-const setup = {
-	SPEAKERS: {
-		"_output": "::Auto-Falantes com echo-canceling",
-		"_input": "::Boya BY-MM1",
-		"name": "Speakers",
-		"label": "Auto-Falantes + Boya BY-MM1",
-		"icon": "audio-headset-symbolic"
-	},
-	HEADSET: {
-		"_output": "Plantronics Blackwire 5220 Series::Headphones",
-		"_input": "Plantronics Blackwire 5220 Series::Headset Microphone",
-		"name": "Headset",
-		"label": "Plantronics Blackwire 5220 Series",
-		"icon": "audio-speakers-symbolic"
-	},
-	lookup: function (device, type) {
-		let full_name = `${device.origin}::${device.description}`;
-		switch (full_name){
-			case this.HEADSET[type]:
-				return this.HEADSET;
-			;;
-			case this.SPEAKERS[type]:
-				return this.SPEAKERS;
-			;;
-			default:
-				return undefined;
-		}
-	},
-	update: function (full_name, user_data) {
-		user_data.setup[user_data.type] = full_name
-	}
-};
-
-
+const VOLUME_ADJUSTMENT_STEP = 0.05; /* Volume adjustment step in % */
 
 class SimpleSoundApplet extends MultiIconApplet {
 	constructor(metadata, orientation, panelHeight, instanceId) {
@@ -65,6 +32,9 @@ class SimpleSoundApplet extends MultiIconApplet {
 			"_output": [],
 			"_input": []
 		};
+        this.signals = new SignalManager(null);
+		this.controls = {};
+		this.setup = {};
 
 		this.setupMixerControls();
 		this.drawMenu(orientation);
@@ -75,11 +45,11 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	setupConfiguration () {
-		this.settings = new Settings.AppletSettings(this, this.metadata.uuid, this.instanceId);
-		this.settings.bind("headset_input", "headset_input", setup.update, {type: '_input', setup: setup.HEADSET});
-		this.settings.bind("headset_output", "headset_output", setup.update, {type: '_output', setup: setup.HEADSET});
-		this.settings.bind("speakers_input", "speakers_input", setup.update, {type: '_input', setup: setup.SPEAKERS});
-		this.settings.bind("speakers_output", "speakers_output", setup.update, {type: '_output', setup: setup.SPEAKERS});
+		this.settings = new Settings.AppletSettings(this.setup, this.metadata.uuid, this.instanceId);
+		this.settings.bind("headset_input", "headset_input", this._onSettingsChanged.bind(this), "headset_input");
+		this.settings.bind("headset_output", "headset_output", this._onSettingsChanged.bind(this), "headset_output");
+		this.settings.bind("speakers_input", "speakers_input", this._onSettingsChanged.bind(this), "speakers_input");
+		this.settings.bind("speakers_output", "speakers_output", this._onSettingsChanged.bind(this), "speakers_output");
 	}
 
 	drawMenu(orientation) {
@@ -100,8 +70,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-		this.menu.addMenuItem(this._drawDevice(setup.HEADSET));
-		this.menu.addMenuItem(this._drawDevice(setup.SPEAKERS));
+		this.menu.addMenuItem(this._drawDevice("Headset"));
+		this.menu.addMenuItem(this._drawDevice("Speakers"));
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -118,18 +88,18 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_drawDevice(setup){
-		let device = new PopupMenu.PopupMenuItem(setup.name);
+		let device = new PopupMenu.PopupMenuItem(setup);
 		let bin = new St.Bin({ x_align: St.Align.END, style_class: 'popup-active-menu-item' });
 		device.addActor(bin, { expand: false, span: -1, align: St.Align.END });
 		device.activate = () => this._toggle_setup(setup);
-		setup.control = device;
+		this.controls[setup] = device;
 		return device;
 	}
 
 	_toggle_setup(setup) {
-		global.log(`_toggle_setup:: ${setup.name}`);
-		this._control.change_input(this.devices['_input'][setup['_input']]);
-		this._control.change_output(this.devices['_output'][setup['_output']]);
+		global.log(`_toggle_setup:: ${setup}`);
+		this._control.change_input(this.getDevice(setup, "_input"));
+		this._control.change_output(this.getDevice(setup, "_output"));
 	}
 
 	setupMixerControls() {
@@ -146,9 +116,13 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._control.connect('input-added', (...args) => this._onDeviceAdded(...args, "_input"));
 
 
+		this._control.connect('output-removed', (...args) => this._onDeviceRemoved(...args, "_output"));
+		this._control.connect('input-removed', (...args) => this._onDeviceRemoved(...args, "_input"));
+
+
 		this._control.connect('state-changed', (...args) => this._onControlStateChanged(...args));
-		this._control.connect('active-output-update', (...args) => this._onDeviceUpdate(...args, "_output"));
-		this._control.connect('active-input-update', (...args) => this._onDeviceUpdate(...args, "_input"));
+		this._control.connect('default-sink-changed', this._onDefaultChanged.bind(this, '_output'));
+		this._control.connect('default-source-changed', this._onDefaultChanged.bind(this, '_input'));
 	}
 
 	setupListeners() {
@@ -162,14 +136,17 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 	_setKeybinding() {
 		// Main.keybindingManager.addHotKey("toggle-mute-" + this.instance_id, "Pause", Lang.bind(this, () => this._toggle_mute('_input')));
-		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", Lang.bind(this, () => this._toggle_setup(setup.HEADSET)));
-		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", Lang.bind(this, () => this._toggle_setup(setup.SPEAKERS)));
+		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", Lang.bind(this, () => this._toggle_setup("Headset")));
+		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", Lang.bind(this, () => this._toggle_setup("Speakers")));
 	}
 
 	on_applet_removed_from_panel () {
-		Main.keybindingManager.removeHotKey("toggle-mute-" + this.instance_id);
+		// Main.keybindingManager.removeHotKey("toggle-mute-" + this.instance_id);
 		Main.keybindingManager.removeHotKey("use-headset-" + this.instance_id);
 		Main.keybindingManager.removeHotKey("use-speakers-" + this.instance_id);
+		this.settings.finalize();
+		this.signals.disconnectAllSignals();
+		this.menu.destroy();
 	}
 
 
@@ -193,7 +170,6 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.stream[property].change_is_muted(
 			!this.stream[property].is_muted
 		);
-		global.log(`_toggle_mute:: done`)
 	}
 
 	_onDeviceAdded(control, id, type) {
@@ -203,7 +179,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		let options = this.generateSettingsOptions(type);
 		this.settings.setOptions(`headset${type}`, options);
 		this.settings.setOptions(`speakers${type}`, options);
-		global.log(`_onDeviceAddedd::id=${id}, card=${device.get_card().get_name()} =>${full_name}`);
+		global.log(`_onDeviceAddedd::id=${id}, type=${type}, => ${full_name}`);
 	}
 
 	generateSettingsOptions(type) {
@@ -219,36 +195,12 @@ class SimpleSoundApplet extends MultiIconApplet {
 		let stream =  this._control.get_stream_from_device(device);
 		let full_name = `${device.origin}::${device.description}`;
 
-		if (this.mute_id[type]) {
-			this.stream[type].disconnect(this.mute_id[type]);
-			this.mute_id[type] = 0;
-		}
-		this.stream[type] = stream;
 
-		global.log(`_onDeviceUpdate:: id=${id}, card=${device.port_name} => ${full_name} is muted ? ${stream.is_muted}`);
-		this.mute_id[type] = stream.connect('notify::is-muted', () => this._onMutedChanged(type));
-		
-		let icon = '';
-		let active = null;
-		let inactive = null;
-		if (full_name == setup.HEADSET._output) {
-			icon = "audio-headset-symbolic";
-			active  = setup.HEADSET.control;
-			inactive = setup.SPEAKERS.control;
-		} else {
-			icon = "audio-speakers-symbolic";
-			active  = setup.SPEAKERS.control;
-			inactive = setup.HEADSET.control;
-		}
-
-		active.setShowDot(true);
-		inactive.setShowDot(false);
-		Main.osdWindowManager.show(-1, Gio.Icon.new_for_string(icon), undefined);
-		this.set_applet_icon_symbolic_name('_output', icon);
-		this.mute_switch['_output'].setIconSymbolicName(icon);
-		this.volume_selection['_output'].icon.set_icon_name(icon);
+		global.log(`_onDeviceUpdate:: id=${id}, type=${type}, card=${device.port_name} => |${full_name}|,  setup=> |${setup.HEADSET._output}| is muted ? ${stream.is_muted}`);
 		this.volume_selection[type].connectWithStream(stream);
-		this._onMutedChanged (type);
+		if (type == "_output") {
+			this._updateUi(full_name);
+		}
 	}
 
 	_onControlStateChanged() {
@@ -281,6 +233,90 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 	on_applet_clicked(event) {
 		this.menu.toggle();
+	}
+
+	getDevice(type, direction) {
+		let name = this.setup[`${type.toLowerCase()}${direction}`];
+		return this.devices[direction][name];
+	}
+	
+	_onSettingsChanged(value, item) {
+		global.log(`_onSettingsChanged:: ${item}=${value}`);
+		let active = (this.controls["Headset"]._dot != null) ? "Headset" : "Speakers";
+		this._toggle_setup(active)
+	}
+
+	_onScrollEvent(actor, event) {
+        if (direction == Clutter.ScrollDirection.SMOOTH) {
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+		let step = 
+			(event.get_scroll_direction() == Clutter.ScrollDirection.UP) ?
+			VOLUME_ADJUSTMENT_STEP:
+			-VOLUME_ADJUSTMENT_STEP
+		;
+		this.volume_selection['_output']._changeValue(step);
+	}
+
+	_onDeviceRemoved(control, id, type) {
+		let device = this._control[`lookup${type}_id`](id);
+		let full_name = `${device.origin}::${device.description}`;
+		this.devices[type][full_name] = device;
+		let options = this.generateSettingsOptions(type);
+		this.settings.setOptions(`headset${type}`, options);
+		this.settings.setOptions(`speakers${type}`, options);
+		global.log(`_onDeviceRemoved::id=${id}, type=${type}, => ${full_name}`);
+	}
+
+	_onDefaultChanged(type, control, id) {
+		global.log(`_onDefaultChanged:: id=${id}, type=${type}`);
+		let stream = control.lookup_stream_id(id);
+		if (!stream) {
+			return;
+		}
+		let device = control.lookup_device_from_stream(stream);
+		let full_name = `${device.origin}::${device.description}`;
+		global.log(`_onDefaultChanged:: id=${id}, name=${full_name}`);
+		this._rebindMute(type, stream);
+		this.volume_selection[type].connectWithStream(stream);
+		if (type =="_output") {
+			this._updateUi(full_name);
+		}
+	}
+
+	_rebindMute(type, stream) {
+		if (this.mute_id[type]) {
+			this.stream[type].disconnect(this.mute_id[type]);
+			this.mute_id[type] = 0;
+		}
+		
+		this.stream[type] = stream;
+		this.mute_id[type] = stream.connect('notify::is-muted', () => this._onMutedChanged(type));
+		this._onMutedChanged (type);
+	}
+
+	_updateUi(full_name) {
+		global.log(`_updateUi:: init for ${full_name}`);
+		let icon = '';
+		let active = null;
+		let inactive = null;
+		if (full_name == this.setup["headset_output"]) {
+			icon = "audio-headset-symbolic";
+			active  = this.controls["Headset"];
+			inactive = this.controls["Speakers"];
+		} else {
+			icon = "audio-speakers-symbolic";
+			active  = this.controls["Speakers"];
+			inactive = this.controls["Headset"];
+		}
+
+		active.setShowDot(true);
+		inactive.setShowDot(false);
+		Main.osdWindowManager.show(-1, Gio.Icon.new_for_string(icon), undefined);
+		this.set_applet_icon_symbolic_name('_output', icon);
+		this.mute_switch['_output'].setIconSymbolicName(icon);
+		this.volume_selection['_output'].icon.set_icon_name(icon);
 	}
 
 }
