@@ -11,7 +11,7 @@ const CINNAMON_DESKTOP_SOUNDS = "org.cinnamon.desktop.sound";
 const MAXIMUM_VOLUME_KEY = "maximum-volume";
 const Signals = imports.signals;
 
-class MediaController {
+class AudioController {
 	constructor(){
         this._signalManager = new SignalManager(null);
 		this._mute_id = [];
@@ -131,4 +131,4 @@ class MediaController {
     }
 
 }
-Signals.addSignalMethods(MediaController.prototype);
+Signals.addSignalMethods(AudioController.prototype);

@@ -11,7 +11,7 @@ const {VolumeSlider} = require('./VolumeSlider');
 const {MultiIconApplet} = require('./MultiIconApplet');
 const {MediaPlayer} = require('./MediaPlayer');
 const {SignalManager} = imports.misc.signalManager;
-const {MediaController} = require('./MediaController');
+const {AudioController} = require('./AudioController');
 const {LogUtils} = require(`./LogUtils`)
 const LOG = new LogUtils();
 
@@ -32,7 +32,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._setupConfiguration();
 		this.teste = "Applet";
 
-		this._controller = new MediaController();
+		this._controller = new AudioController();
 		this._volumeMax = this._controller.volumeMax;
 		this._volumeNorm = this._controller.volumeNorm;
 
@@ -130,7 +130,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._signalManager.connect(this._controller, 'devices-updated', this._updateSettings, this, true);
 		this._signalManager.connect(this.actor, 'scroll-event', this.volume_selection['_output']._onScrollEvent, this.volume_selection['_output']);
 		this._signalManager.connect(this._controller, 'default-changed', this._setDefaultDevice, this, true);
-		this._signalManager.connect(this._controller, 'control-state-changed', this._onMediaControllerStateChanged, this, true);
+		this._signalManager.connect(this._controller, 'control-state-changed', this._onAudioControllerStateChanged, this, true);
 		this._signalManager.connect(this._controller, 'change-mute', this._onMutedChanged, this, true);
 
 	}
@@ -161,7 +161,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		return Applet.Applet.prototype._onButtonPressEvent.call(this, actor, event);
 	}
 
-	_onMediaControllerStateChanged(controller, online) {
+	_onAudioControllerStateChanged(controller, online) {
 		if (online) {
 			this.actor.show();
 		} else {
