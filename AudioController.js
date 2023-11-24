@@ -2,8 +2,7 @@ const Cvc = imports.gi.Cvc;
 const Gio = imports.gi.Gio;
 const Lang = imports.lang;
 const Main = imports.ui.main;
-// const SignalManager = imports.misc.signalManager;
-const {SignalManager} = require('./signalManager');
+const SignalManager = imports.misc.signalManager.SignalManager;
 const {LogUtils} = require(`./LogUtils`)
 const LOG = new LogUtils();
 
@@ -27,8 +26,21 @@ class AudioController {
     }
 
 	setDefaults(sink, source) {
-		this._control.change_input(this._devices["_input"][source]);
-		this._control.change_output(this._devices["_output"][sink]);
+		let input = this._devices["_input"][source];
+		let output = this._devices["_output"][sink];
+
+		if (input == undefined) {
+			LOG.error(`The input {${source}} does not exists on the system. Wrong configuration?`)
+		}
+
+		if (output == undefined) {
+			LOG.error(`The output {${sink}} does not exists on the system. Wrong configuration?`)
+		} 
+		
+		if (input && output) {
+			this._control.change_input(input);
+			this._control.change_output(output);
+		}
 	}
 
 	_setupMixerControls() {
