@@ -117,14 +117,16 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_setupListeners() {
-		let that = this;
-		this.mute_switch.forEach( (item) => {
-			this._signalManager.connect(item, 'toggled',this._controller.toggle_mute, this, true);
-		});
+		for (let name in this.mute_switch){
+			let item =  this.mute_switch[name];
+			LOG.info(`connect for mute_switch[${name}]`)
+			this._signalManager.connect(item, 'toggled',() => this._controller.toggle_mute(name), this, true);
+		};
 
-		this.volume_selection.forEach( (item) => {
-			this._signalManager.connect(item, 'toggle-mute',this._controller.toggle_mute, this, true);
-		});
+		for (let name in this.volume_selection) {
+			let item = this.volume_selection[name];
+			this._signalManager.connect(item, 'toggle-mute',() => this._controller.toggle_mute(name), this, true);
+		};
 
 		this._signalManager.connect(this.volume_selection['_output'], 'volume-changed',this._updateTooltip, this, true);
 		this._signalManager.connect(this._controller, 'devices-updated', this._updateSettings, this, true);
