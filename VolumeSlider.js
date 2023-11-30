@@ -18,7 +18,6 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 			this.set_mark(volumeNorm / volumeMax);
 
 
-			// this.icon = new St.Icon({icon_name: app_icon, icon_type: St.IconType.SYMBOLIC, icon_size: 16});
 			this.icon = new St.Icon({icon_name: app_icon, icon_type: St.IconType.SYMBOLIC, style_class: 'popup-menu-icon'});
 
 			this.removeActor(this._slider);
@@ -41,10 +40,9 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 		// global.log(`connectWithStream::init`);
 		this.actor.show();
 		this.stream = stream;
-		this.isMic = stream instanceof Cvc.MixerSource || stream instanceof Cvc.MixerSourceOutput;
-		this.isOutputSink = stream instanceof Cvc.MixerSink;
 		
-		this._signals.disconnectAllSignals();
+		this._signals.disconnect("notify::is-muted");
+		this._signals.disconnect("notify::volume");
 		this._signals.connect(stream, "notify::is-muted", this._update, this, true);
 		this._signals.connect(stream, "notify::volume", this._update, this, true);
 		this._update();
