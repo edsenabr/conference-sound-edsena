@@ -19,17 +19,15 @@ const VOLUME_ADJUSTMENT_STEP = 0.05; /* Volume adjustment step in % */
 
 class SimpleSoundApplet extends MultiIconApplet {
 	constructor(metadata, orientation, panelHeight, instanceId) {
-		super(orientation, panelHeight, instanceId, ['_input', '_output']);
+		super(orientation, panelHeight, instanceId, ['source', 'sink']);
 		this._metadata = metadata;
-		this.set_applet_icon_symbolic_name('_input','audio-input-microphone-symbolic');
-		this.set_applet_icon_symbolic_name('_output','audio-headset-symbolic');
+		this.set_applet_icon_symbolic_name('source','audio-input-microphone-symbolic');
+		this.set_applet_icon_symbolic_name('sink','audio-headset-symbolic');
 		this.mute_switch = [];
 		this.volume_selection = [];
 		this._signalManager = new SignalManager(null);
 		this._controls = {};
-		this._setup = {};
-		this._settings = {}
-		this._setupConfiguration();
+		// this._setup = {};
 		this.teste = "Applet";
 
 		this._controller = new AudioController();
@@ -44,20 +42,13 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._player = new MediaPlayer(this);
 	}
 
-	_setupConfiguration () {
-		this._settings = new Settings.AppletSettings(this._setup, this._metadata.uuid, this.instanceId);
-		this._settings.bind("headset_input", "headset_input", this._onSettingsChanged.bind(this), "headset_input");
-		this._settings.bind("headset_output", "headset_output", this._onSettingsChanged.bind(this), "headset_output");
-		this._settings.bind("speakers_input", "speakers_input", this._onSettingsChanged.bind(this), "speakers_input");
-		this._settings.bind("speakers_output", "speakers_output", this._onSettingsChanged.bind(this), "speakers_output");
-	}
 
 	_drawMenu(orientation) {
 		// controles
-		this.mute_switch['_output'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute output"), false, "audio-headset-symbolic", St.IconType.SYMBOLIC);
-		this.mute_switch['_input'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute input"), false, "audio-input-microphone-symbolic", St.IconType.SYMBOLIC);
-		this.volume_selection['_output'] = new VolumeSlider(true, this._volumeMax, this._volumeNorm, _("Volume"), 'audio-headset-symbolic');
-		this.volume_selection['_input'] = new VolumeSlider(true, this._volumeMax, this._volumeNorm, _("Microphone"), 'audio-input-microphone-symbolic');
+		this.mute_switch['sink'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute output"), false, "audio-headset-symbolic", St.IconType.SYMBOLIC);
+		this.mute_switch['source'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute input"), false, "audio-input-microphone-symbolic", St.IconType.SYMBOLIC);
+		this.volume_selection['sink'] = new VolumeSlider(true, this._volumeMax, this._volumeNorm, _("Volume"), 'audio-headset-symbolic');
+		this.volume_selection['source'] = new VolumeSlider(true, this._volumeMax, this._volumeNorm, _("Microphone"), 'audio-input-microphone-symbolic');
 
 		// menu
 		this.menuManager = new PopupMenu.PopupMenuManager(this);
@@ -69,19 +60,19 @@ class SimpleSoundApplet extends MultiIconApplet {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 		// botoes de mute
-		this.menu.addMenuItem(this.mute_switch['_input']);
-		this.menu.addMenuItem(this.mute_switch['_output']);
+		this.menu.addMenuItem(this.mute_switch['source']);
+		this.menu.addMenuItem(this.mute_switch['sink']);
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-		this.menu.addMenuItem(this._drawSetup("Headset"));
-		this.menu.addMenuItem(this._drawSetup("Speakers"));
+		this.menu.addMenuItem(this._drawSelection("Headset"));
+		this.menu.addMenuItem(this._drawSelection("Speakers"));
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 		// deslizantes de volume
-		this.menu.addMenuItem(this.volume_selection['_input']);
-		this.menu.addMenuItem(this.volume_selection['_output']);
+		this.menu.addMenuItem(this.volume_selection['source']);
+		this.menu.addMenuItem(this.volume_selection['sink']);
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -91,29 +82,18 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 	}
 
-	_drawSetup(setup){
-		let device = new PopupMenu.PopupMenuItem(setup);
+	_drawSelection(type){
+		let device = new PopupMenu.PopupMenuItem(type);
 		let bin = new St.Bin({ x_align: St.Align.END, style_class: 'popup-active-menu-item' });
 		device.addActor(bin, { expand: false, span: -1, align: St.Align.END });
-		device.activate = () => this._toggle_setup(setup);
-		this._controls[setup] = device;
+		device.activate = () => this._controller.toggle_setup(type);
+		this._controls[type] = device;
 		return device;
-	}
-
-	_toggle_setup(setup) {
-		let source = this._setup[`${setup.toLowerCase()}_input`];
-		let sink = this._setup[`${setup.toLowerCase()}_output`];
-		this._controller.setDefaults(sink, source);
 	}
 
     _getDevice(type, direction) {
 		let name = this._applet.setup[`${type.toLowerCase()}${direction}`]; //adjust
 		return this._devices[direction][name];
-	}
-
-	_updateSettings(that, type, options) {
-		this._settings.setOptions(`headset${type}`, options);
-		this._settings.setOptions(`speakers${type}`, options);
 	}
 
 	_setupListeners() {
@@ -128,9 +108,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 			this._signalManager.connect(item, 'toggle-mute',() => this._controller.toggle_mute(name), this, true);
 		};
 
-		this._signalManager.connect(this.volume_selection['_output'], 'volume-changed',this._updateTooltip, this, true);
-		this._signalManager.connect(this._controller, 'devices-updated', this._updateSettings, this, true);
-		this._signalManager.connect(this.actor, 'scroll-event', this.volume_selection['_output']._onScrollEvent, this.volume_selection['_output']);
+		this._signalManager.connect(this.volume_selection['sink'], 'volume-changed',this._updateTooltip, this, true);
+		this._signalManager.connect(this.actor, 'scroll-event', this.volume_selection['sink']._onScrollEvent, this.volume_selection['sink']);
 		this._signalManager.connect(this._controller, 'default-changed', this._setDefaultDevice, this, true);
 		this._signalManager.connect(this._controller, 'control-state-changed', this._onAudioControllerStateChanged, this, true);
 		this._signalManager.connect(this._controller, 'change-mute', this._onMutedChanged, this, true);
@@ -138,12 +117,11 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_setKeybinding() {
-		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", Lang.bind(this, () => this._toggle_setup("Headset")));
-		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", Lang.bind(this, () => this._toggle_setup("Speakers")));
+		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", Lang.bind(this, () => this._controller.toggle_setup("Headset")));
+		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", Lang.bind(this, () => this._controller.toggle_setup("Speakers")));
 	}
 
 	on_applet_removed_from_panel () {
-		this._settings.finalize();
 		this._signalManager.disconnectAllSignals();
 		this.menu.destroy();
 		this._player.destroy();
@@ -157,7 +135,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 	
 	_onButtonPressEvent (actor, event) {
 		if (event.get_button() == 2) {
-			this._controller.toggle_mute('_input');
+			this._controller.toggle_mute('source');
 			return Clutter.EVENT_STOP;
 		}
 		return Applet.Applet.prototype._onButtonPressEvent.call(this, actor, event);
@@ -171,8 +149,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 		}
 	}
 
-	_onMutedChanged(controller, property, muted) {
-		this.mute_switch[property].setToggleState(muted); // adjust, refactor into controller method
+	_onMutedChanged(controller, direction, muted) {
+		this.mute_switch[direction].setToggleState(muted); // adjust, refactor into controller method
 		let defaultColor = this.actor.get_theme_node().get_foreground_color();
 		let style = 
 			muted ?
@@ -185,21 +163,13 @@ class SimpleSoundApplet extends MultiIconApplet {
 			)
 		;
 
-		this._applet_icons[property].style = style;
-		this.volume_selection[property].icon.style = style;
+		this._applet_icons[direction].style = style;
+		this.volume_selection[direction].icon.style = style;
 
 	}
 
 	on_applet_clicked(event) {
 		this.menu.toggle();
-	}
-
-	_onSettingsChanged(value, item) {
-		global.log(`_onSettingsChanged:: ${item}=${value}`);
-		let active = (this._controls["Headset"]._dot != null) ? "headset" : "speakers";
-		let source = this._setup[`${active}_input`];
-		let sink = this._setup[`${active}_output`];
-		this._controller.setDefaults(sink, source);
 	}
 
 	_onScrollEvent(actor, event) {
@@ -212,15 +182,15 @@ class SimpleSoundApplet extends MultiIconApplet {
 			VOLUME_ADJUSTMENT_STEP:
 			-VOLUME_ADJUSTMENT_STEP
 		;
-		this.volume_selection['_output']._changeValue(step);
+		this.volume_selection['sink']._changeValue(step);
 	}
 
-	_updateUi(full_name) {
-		global.log(`_updateUi:: init for ${full_name}`);
+	_updateUi(type) {
+		global.log(`_updateUi:: init for ${type}`);
 		let icon = '';
 		let active = null;
 		let inactive = null;
-		if (full_name == this._setup["headset_output"]) {
+		if (type == "Headset") {
 			icon = "audio-headset-symbolic";
 			active  = this._controls["Headset"];
 			inactive = this._controls["Speakers"];
@@ -233,15 +203,17 @@ class SimpleSoundApplet extends MultiIconApplet {
 		active.setShowDot(true);
 		inactive.setShowDot(false);
 		Main.osdWindowManager.show(-1, Gio.Icon.new_for_string(icon), undefined);
-		this.set_applet_icon_symbolic_name('_output', icon);
+		this.set_applet_icon_symbolic_name('sink', icon);
 		this.mute_switch['_output'].setIconSymbolicName(icon);
 		this.volume_selection['_output'].icon.set_icon_name(icon);
 	}
 
-	_setDefaultDevice(emmitter, full_name, type, stream){
-		this.volume_selection[type].connectWithStream(stream);
-		if (type =="_output") {
-			this._updateUi(full_name);
+	_setDefaultDevice(emmitter, type, direction, stream){
+		LOG.init();
+		LOG.info(`type={${type}}, direction={${direction}}, stream={${stream}}`)
+		this.volume_selection[direction].connectWithStream(stream);
+		if (direction =="sink") {
+			this._updateUi(type);
 		}
 	}
 

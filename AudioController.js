@@ -13,35 +13,10 @@ const Signals = imports.signals;
 class AudioController {
 	constructor(){
         this._signalManager = new SignalManager(null);
-		this._mute_id = [];
-		this._stream = [];
-		this._devices = {
-			"_output": [],
-			"_input": []
-		};
-		this.teste = "controller";
         this.volumeMax = 0;
         this.volumeNorm = 0;
 		this._setupMixerControls();
     }
-
-	setDefaults(sink, source) {
-		let input = this._devices["_input"][source];
-		let output = this._devices["_output"][sink];
-
-		if (input == undefined) {
-			LOG.error(`The input {${source}} does not exists on the system. Wrong configuration?`)
-		}
-
-		if (output == undefined) {
-			LOG.error(`The output {${sink}} does not exists on the system. Wrong configuration?`)
-		} 
-		
-		if (input && output) {
-			this._control.change_input(input);
-			this._control.change_output(output);
-		}
-	}
 
 	_setupMixerControls() {
 		this._control = new Cvc.MixerControl({ name: 'Cinnamon Volume Control' });
@@ -52,17 +27,9 @@ class AudioController {
 		this.volumeMax = this._sound_settings.get_int(MAXIMUM_VOLUME_KEY) / 100 * this._control.get_vol_max_norm();
 		this.volumeNorm = this._control.get_vol_max_norm();
 
-		this._signalManager.connect(this._control, 'output-removed', this._onDeviceAdded.bind(this, '_output'));
-		this._signalManager.connect(this._control, 'input-removed', this._onDeviceAdded.bind(this, '_input'));
-
-
-		this._signalManager.connect(this._control, 'output-removed', this._onDeviceRemoved.bind(this, '_output'));
-		this._signalManager.connect(this._control, 'input-removed', this._onDeviceRemoved.bind(this, '_input'));
-
-
 		this._signalManager.connect(this._control, 'state-changed', this._onMixerControlStateChanged, this, true);
-		this._signalManager.connect(this._control, 'default-sink-changed', this._onDefaultChanged.bind(this, '_output'));
-		this._signalManager.connect(this._control, 'default-source-changed', this._onDefaultChanged.bind(this, '_input'));
+		this._signalManager.connect(this._control, 'default-sink-changed', this._onDefaultChanged.bind(this, 'sink'));
+		this._signalManager.connect(this._control, 'default-source-changed', this._onDefaultChanged.bind(this, 'source'));
 
     }
 
@@ -70,73 +37,66 @@ class AudioController {
 		this.emit('control-state-changed', (this._control.get_state() == Cvc.MixerControlState.READY));
 	}
 
-	toggle_mute(property) {
-		global.log(`_toggle_mute:: ${property}`)
-		if (!this._stream[property])
-				return;
-
-		this._stream[property].change_is_muted(
-			!this._stream[property].is_muted
-		);
+	toggle_mute(direction) {
+		global.log(`_toggle_mute:: ${direction}`)
+		let stream = this._control[`get_default_${direction}`](); 
+		stream.change_is_muted(!stream.is_muted);
 	}
 
-	_generateSettingsOptions(type) {
-		let options = {};
-		for (let device in this._devices[type]) {
-			options[device] = device;
-		}
-        return options;
-	}
-
-    _onDeviceAdded(type, control, id) {
-		let device = this._control[`lookup${type}_id`](id);
-		let full_name = `${device.origin}::${device.description}`;
-		this._devices[type][full_name] = device;
-        this.emit('devices-updated', type, this._generateSettingsOptions(type));
-		global.log(`_onDeviceAddedd::id=${id}, type=${type}, => ${full_name}`);
-	}
-
-	_onDeviceRemoved(type, control, id) {
-		let device = this._control[`lookup${type}_id`](id);
-		let full_name = `${device.origin}::${device.description}`;
-		this._devices[type][full_name] = device;
-        this.emit('devices-updated', type, this._generateSettingsOptions(type));
-		global.log(`_onDeviceRemoved::id=${id}, type=${type}, => ${full_name}`);
-	}
-
-	_onDefaultChanged(type, control, id) {
-		global.log(`_onDefaultChanged:: id=${id}, type=${type}`);
-		let stream = control.lookup_stream_id(id);
-		if (!stream) {
+	toggle_setup(type) {
+		LOG.init();
+		let device = this._detect_devices(type);
+		global.log(device);
+		if (!device) {
+			LOG.error(`${type} not found!!!`)
+			// send notification
 			return;
 		}
-		let device = control.lookup_device_from_stream(stream);
-		let full_name = `${device.origin}::${device.description}`;
-		this._rebindMute(type, stream);
-		this.emit('default-changed', full_name, type, stream);
-		this.emit('change-mute', type, this._stream[type].is_muted);
+		this._control.change_input(device.source);
+		this._control.change_output(device.sink);
 	}
 
-	_onDeviceUpdate(control, id, type) {
-		let device = this._control[`lookup${type}_id`](id);
-		let stream =  this._control.get_stream_from_device(device);
-		let full_name = `${device.origin}::${device.description}`;
+	_detect_devices(type) {
+		let devices = this._control.get_streams()
+			.filter( stream => stream.get_card_index() != 4294967295 )
+			.filter( stream => this._control.lookup_device_from_stream(stream)["port-available"] )
+			.reduce((map, stream)=> {
+				let device = this._control.lookup_device_from_stream(stream);
+				let direction =  device.is_output() ? "sink" : "source";
+				let type = device.description == "Headset" ? "Headset" : "Speakers"; 
+				(map[type][device.origin] = map[type][device.origin] ?? {})[direction] = device;
+				return map;
+			}, {"Headset": {}, "Speakers": {}});
 
-
-		global.log(`_onDeviceUpdate:: id=${id}, type=${type}, card=${device.port_name} => |${full_name}|,  setup=> |${setup.HEADSET._output}| is muted ? ${stream.is_muted}`);
-		this.emit('default-changed', full_name, type, stream);
-		this.emit('change-mute', type, this._stream[type].is_muted);
-	}
-
-	_rebindMute(type, stream) {
-		if (this._mute_id[type]) {
-			this._stream[type].disconnect(this._mute_id[type]);
-			this._mute_id[type] = 0;
+		if (type == "Headset") {
+			return devices.Headset [
+				['Plantronics', 'SteelSeries'].find(name => devices.Headset[name])
+			];
+	
+		} else {
+			let speaker = devices.Speakers.Interno;
+			speaker.source = devices.Speakers.VD5?.source ?? speaker.source; 
+			return speaker;
 		}
-		
-		this._stream[type] = stream;
-		this._mute_id[type] = stream.connect('notify::is-muted', () => this.emit('change-mute', type, this._stream[type].is_muted)); //adjust >> receives state?
+	}	
+
+	_onDefaultChanged(direction, control, id) {
+		global.log(`_onDefaultChanged:: id=${id}, type=${direction}`);
+		let stream = control.lookup_stream_id(id);
+		if (!stream) return;
+		let device = control.lookup_device_from_stream(stream);
+		this._rebindMute();
+		let type = device.description == "Headset" ? "Headset" : "Speakers"; 
+		this.emit('default-changed', type, direction, stream);
+		this.emit('change-mute', direction, stream.is_muted);
 	}
+
+	_rebindMute() {
+		this._signalManager.disconnect('notify::is-muted');
+		this._signalManager.connect(this._control.get_default_sink(), 'notify::is-muted', () => this.emit('change-mute', 'sink', this._control.get_default_sink().is_muted));
+		this._signalManager.connect(this._control.get_default_source(), 'notify::is-muted', () => this.emit('change-mute', 'source', this._control.get_default_source().is_muted));
+	}
+
     destroy() {
 		Main.keybindingManager.removeHotKey("use-headset-" + this.instance_id);
 		Main.keybindingManager.removeHotKey("use-speakers-" + this.instance_id);
