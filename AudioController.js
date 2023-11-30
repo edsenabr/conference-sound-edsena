@@ -52,17 +52,17 @@ class AudioController {
 		this.volumeMax = this._sound_settings.get_int(MAXIMUM_VOLUME_KEY) / 100 * this._control.get_vol_max_norm();
 		this.volumeNorm = this._control.get_vol_max_norm();
 
-		this._control.connect('output-added', (...args) => this._onDeviceAdded(...args, "_output"));
-		this._control.connect('input-added', (...args) => this._onDeviceAdded(...args, "_input"));
+		this._signalManager.connect(this._control, 'output-removed', this._onDeviceAdded.bind(this, '_output'));
+		this._signalManager.connect(this._control, 'input-removed', this._onDeviceAdded.bind(this, '_input'));
 
 
-		this._control.connect('output-removed', (...args) => this._onDeviceRemoved(...args, "_output"));
-		this._control.connect('input-removed', (...args) => this._onDeviceRemoved(...args, "_input"));
+		this._signalManager.connect(this._control, 'output-removed', this._onDeviceRemoved.bind(this, '_output'));
+		this._signalManager.connect(this._control, 'input-removed', this._onDeviceRemoved.bind(this, '_input'));
 
 
-		this._control.connect('state-changed', this._onMixerControlStateChanged.bind(this));
-		this._control.connect('default-sink-changed', this._onDefaultChanged.bind(this, '_output'));
-		this._control.connect('default-source-changed', this._onDefaultChanged.bind(this, '_input'));
+		this._signalManager.connect(this._control, 'state-changed', this._onMixerControlStateChanged, this, true);
+		this._signalManager.connect(this._control, 'default-sink-changed', this._onDefaultChanged.bind(this, '_output'));
+		this._signalManager.connect(this._control, 'default-source-changed', this._onDefaultChanged.bind(this, '_input'));
 
     }
 
@@ -88,7 +88,7 @@ class AudioController {
         return options;
 	}
 
-    _onDeviceAdded(control, id, type) {
+    _onDeviceAdded(type, control, id) {
 		let device = this._control[`lookup${type}_id`](id);
 		let full_name = `${device.origin}::${device.description}`;
 		this._devices[type][full_name] = device;
@@ -96,7 +96,7 @@ class AudioController {
 		global.log(`_onDeviceAddedd::id=${id}, type=${type}, => ${full_name}`);
 	}
 
-	_onDeviceRemoved(control, id, type) {
+	_onDeviceRemoved(type, control, id) {
 		let device = this._control[`lookup${type}_id`](id);
 		let full_name = `${device.origin}::${device.description}`;
 		this._devices[type][full_name] = device;
@@ -140,6 +140,7 @@ class AudioController {
     destroy() {
 		Main.keybindingManager.removeHotKey("use-headset-" + this.instance_id);
 		Main.keybindingManager.removeHotKey("use-speakers-" + this.instance_id);
+		this._signalManager.disconnectAllSignals();
     }
 
 }

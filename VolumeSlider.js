@@ -43,13 +43,10 @@ class VolumeSlider extends PopupMenu.PopupSliderMenuItem {
 		this.stream = stream;
 		this.isMic = stream instanceof Cvc.MixerSource || stream instanceof Cvc.MixerSourceOutput;
 		this.isOutputSink = stream instanceof Cvc.MixerSink;
-
-		let mutedId = stream.connect("notify::is-muted", () => this._update());
-		let volumeId = stream.connect("notify::volume", () => this._update());
-		this.connect("destroy", () => {
-				stream.disconnect(mutedId);
-				stream.disconnect(volumeId);
-		});
+		
+		this._signals.disconnectAllSignals();
+		this._signals.connect(stream, "notify::is-muted", this._update, this, true);
+		this._signals.connect(stream, "notify::volume", this._update, this, true);
 		this._update();
 		// global.log(`connectWithStream::done`);
 	}
