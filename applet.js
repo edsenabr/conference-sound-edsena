@@ -23,16 +23,12 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._metadata = metadata;
 		this.set_applet_icon_symbolic_name('source','audio-input-microphone-symbolic');
 		this.set_applet_icon_symbolic_name('sink','audio-headset-symbolic');
-		this.mute_switch = [];
-		this.volume_selection = [];
+		this._mute_switches = {};
+		this._volume_sliders = {};
 		this._signalManager = new SignalManager(null);
-		this._controls = {};
-		// this._setup = {};
-		this.teste = "Applet";
+		this._radio_buttons = {};
 
 		this._controller = new AudioController();
-		this._volumeMax = this._controller.volumeMax;
-		this._volumeNorm = this._controller.volumeNorm;
 
 		this._drawMenu(orientation);
 		this._setupListeners();
@@ -40,15 +36,16 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._setKeybinding();
 
 		this._player = new MediaPlayer(this);
+		// LOG.info(this.menu._getMenuItems()[2]) // usar constantes? função para indexar o menu e interagir com os componentes?
 	}
 
 
 	_drawMenu(orientation) {
 		// controles
-		this.mute_switch['sink'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute output"), false, "audio-headset-symbolic", St.IconType.SYMBOLIC);
-		this.mute_switch['source'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute input"), false, "audio-input-microphone-symbolic", St.IconType.SYMBOLIC);
-		this.volume_selection['sink'] = new VolumeSlider(true, this._volumeMax, this._volumeNorm, _("Volume"), 'audio-headset-symbolic');
-		this.volume_selection['source'] = new VolumeSlider(true, this._volumeMax, this._volumeNorm, _("Microphone"), 'audio-input-microphone-symbolic');
+		this._mute_switches['sink'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute output"), false, "audio-headset-symbolic", St.IconType.SYMBOLIC);
+		this._mute_switches['source'] = new PopupMenu.PopupSwitchIconMenuItem(_("Mute input"), false, "audio-input-microphone-symbolic", St.IconType.SYMBOLIC);
+		this._volume_sliders['sink'] = new VolumeSlider(true, this._controller.volumeMax, this._controller.volumeNorm, _("Volume"), 'audio-headset-symbolic');
+		this._volume_sliders['source'] = new VolumeSlider(true, this._controller.volumeMax, this._controller.volumeNorm, _("Microphone"), 'audio-input-microphone-symbolic');
 
 		// menu
 		this.menuManager = new PopupMenu.PopupMenuManager(this);
@@ -60,8 +57,8 @@ class SimpleSoundApplet extends MultiIconApplet {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 		// botoes de mute
-		this.menu.addMenuItem(this.mute_switch['source']);
-		this.menu.addMenuItem(this.mute_switch['sink']);
+		this.menu.addMenuItem(this._mute_switches['source']);
+		this.menu.addMenuItem(this._mute_switches['sink']);
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -71,8 +68,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 		// deslizantes de volume
-		this.menu.addMenuItem(this.volume_selection['source']);
-		this.menu.addMenuItem(this.volume_selection['sink']);
+		this.menu.addMenuItem(this._volume_sliders['source']);
+		this.menu.addMenuItem(this._volume_sliders['sink']);
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -87,7 +84,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		let bin = new St.Bin({ x_align: St.Align.END, style_class: 'popup-active-menu-item' });
 		device.addActor(bin, { expand: false, span: -1, align: St.Align.END });
 		device.activate = () => this._controller.toggle_setup(type);
-		this._controls[type] = device;
+		this._radio_buttons[type] = device;
 		return device;
 	}
 
@@ -97,19 +94,19 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_setupListeners() {
-		for (let name in this.mute_switch){
-			let item =  this.mute_switch[name];
+		for (let name in this._mute_switches){
+			let item =  this._mute_switches[name];
 			LOG.info(`connect for mute_switch[${name}]`)
 			this._signalManager.connect(item, 'toggled',() => this._controller.toggle_mute(name), this, true);
 		};
 
-		for (let name in this.volume_selection) {
-			let item = this.volume_selection[name];
+		for (let name in this._volume_sliders) {
+			let item = this._volume_sliders[name];
 			this._signalManager.connect(item, 'toggle-mute',() => this._controller.toggle_mute(name), this, true);
 		};
 
-		this._signalManager.connect(this.volume_selection['sink'], 'volume-changed',this._updateTooltip, this, true);
-		this._signalManager.connect(this.actor, 'scroll-event', this.volume_selection['sink']._onScrollEvent, this.volume_selection['sink']);
+		this._signalManager.connect(this._volume_sliders['sink'], 'volume-changed',this._updateTooltip, this, true);
+		this._signalManager.connect(this.actor, 'scroll-event', this._volume_sliders['sink']._onScrollEvent, this._volume_sliders['sink']);
 		this._signalManager.connect(this._controller, 'default-changed', this._setDefaultDevice, this, true);
 		this._signalManager.connect(this._controller, 'control-state-changed', this._onAudioControllerStateChanged, this, true);
 		this._signalManager.connect(this._controller, 'change-mute', this._onMutedChanged, this, true);
@@ -150,7 +147,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_onMutedChanged(controller, direction, muted) {
-		this.mute_switch[direction].setToggleState(muted); // adjust, refactor into controller method
+		this._mute_switches[direction].setToggleState(muted); // adjust, refactor into controller method
 		let defaultColor = this.actor.get_theme_node().get_foreground_color();
 		let style = 
 			muted ?
@@ -164,7 +161,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 		;
 
 		this._applet_icons[direction].style = style;
-		this.volume_selection[direction].icon.style = style;
+		this._volume_sliders[direction].icon.style = style;
 
 	}
 
@@ -182,7 +179,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 			VOLUME_ADJUSTMENT_STEP:
 			-VOLUME_ADJUSTMENT_STEP
 		;
-		this.volume_selection['sink']._changeValue(step);
+		this._volume_sliders['sink']._changeValue(step);
 	}
 
 	_updateUi(type) {
@@ -192,26 +189,26 @@ class SimpleSoundApplet extends MultiIconApplet {
 		let inactive = null;
 		if (type == "Headset") {
 			icon = "audio-headset-symbolic";
-			active  = this._controls["Headset"];
-			inactive = this._controls["Speakers"];
+			active  = this._radio_buttons["Headset"];
+			inactive = this._radio_buttons["Speakers"];
 		} else {
 			icon = "audio-speakers-symbolic";
-			active  = this._controls["Speakers"];
-			inactive = this._controls["Headset"];
+			active  = this._radio_buttons["Speakers"];
+			inactive = this._radio_buttons["Headset"];
 		}
 
 		active.setShowDot(true);
 		inactive.setShowDot(false);
 		Main.osdWindowManager.show(-1, Gio.Icon.new_for_string(icon), undefined);
 		this.set_applet_icon_symbolic_name('sink', icon);
-		this.mute_switch['_output'].setIconSymbolicName(icon);
-		this.volume_selection['_output'].icon.set_icon_name(icon);
+		this._mute_switches['sink'].setIconSymbolicName(icon);
+		this._volume_sliders['sink'].icon.set_icon_name(icon);
 	}
 
 	_setDefaultDevice(emmitter, type, direction, stream){
 		LOG.init();
 		LOG.info(`type={${type}}, direction={${direction}}, stream={${stream}}`)
-		this.volume_selection[direction].connectWithStream(stream);
+		this._volume_sliders[direction].connectWithStream(stream);
 		if (direction =="sink") {
 			this._updateUi(type);
 		}
