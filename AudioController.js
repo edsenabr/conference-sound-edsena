@@ -59,7 +59,7 @@ class AudioController {
 	_detect_devices(type) {
 		let devices = this._control.get_streams()
 			.filter( stream => stream.get_card_index() != 4294967295 )
-			.filter( stream => this._control.lookup_device_from_stream(stream)["port-available"] )
+			.filter( stream => this._control.lookup_device_from_stream(stream).port_available )
 			.reduce((map, stream)=> {
 				let device = this._control.lookup_device_from_stream(stream);
 				let direction =  device.is_output() ? "sink" : "source";
