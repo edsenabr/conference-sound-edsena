@@ -1,7 +1,8 @@
 class LogUtils {
 	compact = false;
 
-	constructor(){
+	constructor(enabled){
+		this.enabled = (enabled !== false); //caring for undefined
 	}
 
 	init(...args) {
@@ -9,23 +10,24 @@ class LogUtils {
 
 	}
 
-	info(message) {
-		this._log('', message)
+	info(...args) {
+		this._log('', ...args)
 	}
 
-	warn (message) {
-		this._log('Warning', message)
+	warn (...args) {
+		this._log('Warning', ...args)
 	}
 
-	error(message) {
-		this._log('Error', message)
+	error(...args) {
+		this._log('Error', ...args)
 	}
 
-	debug(message) {
-		this._log('DEBUG',message)
+	debug(...args) {
+		this._log('DEBUG',...args)
 	}
 
-	_log(level, message) {
+	_log(level, ...args) {
+		if (!this.enabled) return;
 		let stack =	new Error()
 			.stack
 			.replaceAll(/(\/<)?\@.+$/gm, '')
@@ -35,6 +37,11 @@ class LogUtils {
 		}
 		
 		stack = stack.split(/\n/).slice(2).reverse().join('::');
-		global[`log${level == 'DEBUG' ? '' : level}`](`${level == 'DEBUG' ? 'DEBUG' : 'LOG'}${stack}::${message}`);
+		if (args.length == 1){
+			global[`log${level == 'DEBUG' ? '' : level}`](`${level == 'DEBUG' ? 'DEBUG' : 'LOG'}${stack}::${args[0]}`);
+		} else {
+			global[`log${level == 'DEBUG' ? '' : level}`](`${level == 'DEBUG' ? 'DEBUG' : 'LOG'}${stack}::`, args);
+
+		}
 	}
 }
