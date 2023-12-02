@@ -11,7 +11,7 @@ const {MediaPlayerController} = require('./MediaPlayerController');
 const {SignalManager} = imports.misc.signalManager;
 const {AudioController} = require('./AudioController');
 const {LogUtils} = require(`./LogUtils`)
-const LOG = new LogUtils();
+const LOG = new LogUtils(LogUtils.levels.Info, 'SimpleSoundApplet');
 const MK = imports.gi.CDesktopEnums.MediaKeyType;
 const XF86AudioMicMute = `media-keys-${MK.MIC_MUTE}`;
 const XF86AudioLowerVolume = `media-keys-${MK.VOLUME_DOWN}`;
@@ -32,11 +32,12 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._controller = new AudioController();
 
 		this._drawMenu(orientation);
-		this._setupListeners();
 
 		this._global_keybindings = this._setKeybindings();
 
-		this._player = new MediaPlayerController();
+		this._devices = new Map();
+		this._mediaController = new MediaPlayerController();
+		this._setupListeners();
 	}
 
 
@@ -53,6 +54,9 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this.menuManager.addMenu(this.menu);
 
         this._chooseActivePlayerItem = new PopupMenu.PopupSubMenuMenuItem(_("Choose player controls"));
+		this._chooseActivePlayerItem.menu.close = () => {}
+		this._chooseActivePlayerItem.actor.hide();
+
         this.menu.addMenuItem(this._chooseActivePlayerItem);
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -109,6 +113,11 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._signalManager.connect(this._controller, 'control-state-changed', this._onAudioControllerStateChanged, this, true);
 		this._signalManager.connect(this._controller, 'change-mute', this._onMutedChanged, this, true);
 
+		// media controller integration
+		this._signalManager.connect(this._mediaController, 'player-changed', this._onPlayerChanged, this);
+		this._signalManager.connect(this._mediaController, 'player-opened', this._onPlayerOpened, this);
+		this._signalManager.connect(this._mediaController, 'player-closed', this._onPlayerClosed, this);
+		LOG.done();
 	}
 
 	_setKeybindings() {
@@ -131,7 +140,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 	on_applet_removed_from_panel () {
 		this._signalManager.disconnectAllSignals();
 		this.menu.destroy();
-		this._player.destroy();
+		this._mediaController.destroy();
 		this._controller.destroy();
 	}
 
@@ -154,6 +163,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_onAudioControllerStateChanged(controller, online) {
+		LOG.init(online);
 		if (online) {
 			this.actor.show();
 		} else {
@@ -217,7 +227,49 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 	_setDefaultDevice(emmitter, type){
 		this._updateUi(type);
-	    }
+	}
+
+	/** media controller relad methods */
+	_onPlayerOpened(emitter, name){
+		LOG.init(`opened player ${name}`);
+		let device = new MediaPlayerMenuItem(name);
+		this._signalManager.connect(device, 'change-player', this._onChangePlayer, this);
+		this._devices.set(name, device);
+		this._chooseActivePlayerItem.menu.addMenuItem(device);
+		this._chooseActivePlayerItem.actor.show();
+		this._chooseActivePlayerItem.menu.open();
+		LOG.done();
+	}
+
+	_onPlayerClosed(emitter, name){
+		LOG.init(`closed player ${name}`);
+		let device = this._devices.get(name);
+		if (!device) {
+			return;
+		}
+		this._signalManager.disconnect('change-player', device, this._onChangePlayer);
+		this._devices.delete(name)
+		if (this._devices.size == 0) {
+			this._chooseActivePlayerItem.actor.hide();
+		}
+		device.destroy();
+		LOG.done();
+	}
+
+
+	_onChangePlayer(emmiter, name) {
+		LOG.init(`change player to ${name}`);
+		this._mediaController._changeActivePlayer(name);
+		LOG.done();
+	}
+
+	_onPlayerChanged(emitter, active) {
+		LOG.init(`changed player to ${active}`);
+		this._devices.forEach((device, name) => {
+			device.setShowDot(name == active)
+		})
+		LOG.done();
+	}	
 
 }
 

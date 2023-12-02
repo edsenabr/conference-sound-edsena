@@ -3,7 +3,8 @@ const Main = imports.ui.main;
 const Lang = imports.lang;
 const {SignalManager} = imports.misc.signalManager;
 const Signals = imports.signals;
-
+const {LogUtils} = require('./LogUtils');
+const LOG = new LogUtils(LogUtils.levels.Info, `MediaPlayerController`);
 const MEDIA_PLAYER_2_PLAYER_NAME = "org.mpris.MediaPlayer2.Player";
 const KNOWN_PLAYERS = [
     "banshee",
@@ -13,167 +14,131 @@ const KNOWN_PLAYERS = [
 ];
 
 const name_regex = /^org\.mpris\.MediaPlayer2\.(.+)/;
+const PLAYER_ACTIONS = ["Next", "Prev", "Play", "Stop"];
 
 
 class MediaPlayerController {
 	constructor(){
+        LOG.init();
 		this._signalManager = new SignalManager(null);
-        this._players = {};
+        this._players = [];
         this._activePlayer = null;
-        // this._applet = applet;
 
-        ["Next", "Prev", "Play", "Stop"].forEach((action)=> {
-            Main.keybindingManager.addHotKey(`player-${action}-${this.instance_id}`, `Audio${action}`, Lang.bind(this, () => {
-                if (this._activePlayer) {
-                    this._players[this._activePlayer][action]();
-                }
-            }));
+        PLAYER_ACTIONS.forEach( action => {
+            Main.keybindingManager.addHotKey(
+				`player-controller-${action}`, 
+				`Audio${action}`, 
+				this._onPlayerAction.bind(this)
+			);
         })
-
-        Interfaces.getDBusAsync((proxy, error) => {
-            if (error) {
-                throw error;
-            }
-
-            this._dbus = proxy;
-
-            this._dbus.ListNamesRemote((names) => {
-                for (let id in names[0]) {
-                    let full_name = names[0][id];
-                    let name = full_name.match(name_regex);
-                    if (name && KNOWN_PLAYERS.includes(name[1])) {
-                        this._dbus.GetNameOwnerRemote(full_name, (owner) => {
-                            if (owner[0] != undefined) {
-                                this._addPlayer(full_name, owner[0])
-                            }
-                        });
-                    }
-                }
-            });
-
-            this._ownerChangedId = this._dbus.connectSignal('NameOwnerChanged',
-                (proxy, sender, [name, old_owner, new_owner]) => {
-                    if (name_regex.test(name)) {
-                        if (new_owner && !old_owner)
-                            this._addPlayer(name, new_owner);
-                        else if (old_owner && !new_owner)
-                            this._removePlayer(name, old_owner);
-                        else
-                            this._changePlayerOwner(name, old_owner, new_owner);
-                    }
-                }
-            );
-        });
+        this._dbusConnect();
     }
 
-    
-    _isInstance(busName) {
-        // MPRIS instances are in the form
-        //   org.mpris.MediaPlayer2.name.instanceXXXX
-        // ...except for VLC, which to this day uses
-        //   org.mpris.MediaPlayer2.name-XXXX
-        return busName.split('.').length > 4 ||
-                /^org\.mpris\.MediaPlayer2\.vlc-\d+$/.test(busName);
-    }
-
-    _addPlayer(busName, owner) {
-        if (this._players[owner]) {
-            let prevName = this._players[owner]._busName;
-            if (this._isInstance(busName) && !this._isInstance(prevName))
-                this._players[owner]._busName = busName;
-            else
+	_dbusConnect() {
+        LOG.init();
+        this._dbus = Interfaces.getDBus();
+        this._dbus.ListNamesRemote( names => {
+            if(!names[0]) {
                 return;
-        } else if (owner) {
-            let player = new MediaPlayer(busName, owner);
-            
-            // isso aqui deveria virar sinal tb
-
-            // this._applet._chooseActivePlayerItem.menu.addMenuItem(player.menu);
-            this._players[owner] = player;
-            this._changeActivePlayer(owner);
-            this.emit('player-opened', player.menu);
-        }
-    }
-
-    _switchPlayer(owner) {
-        if(this._players[owner]) {
-            this._changeActivePlayer(owner);
-        } else {
-            this._removePlayerItem(owner);
-        }
-    }
-
-    _removePlayer(busName, owner) {
-        if (this._players[owner] && this._players[owner]._busName == busName) {
-            this.emit('player-closed', this._players[owner].menu);
-            this._players[owner].menu.destroy();
-            delete this._players[owner];
-
-            if (this._activePlayer == owner) {
-                this._activePlayer = null;
-                for (let i in this._players) {
-                    this._changeActivePlayer(i);
-                    break;
-                }
             }
-        }
+            names[0].forEach(name => {
+                if (this._getApp(name)) 
+                    this._addPlayer(name);
+            });
+        });
+        this._DBusSignalID = this._dbus.connectSignal('NameOwnerChanged', this._onDBusChange.bind(this));
     }
 
-    _changePlayerOwner(busName, oldOwner, newOwner) {
-        if (this._players[oldOwner] && busName == this._players[oldOwner]._busName) {
-            this._players[newOwner] = this._players[oldOwner];
-            this._players[newOwner]._owner = newOwner;
-            delete this._players[oldOwner];
-            if (this._activePlayer == oldOwner)
-                this._activePlayer = newOwner;
-        }
+    _getApp(name) {
+        let result = name.match(name_regex);
+        return result && KNOWN_PLAYERS.includes(result[1])? result[1] : undefined;
     }
 
-    _changeActivePlayer(player) {
-        this._activePlayer = player;
+    _onDBusChange(proxy, sender, [name, old_instance_id, new_instance_id]) {
+        if (!this._getApp(name)) {
+            return; 
+        }
+
+        /** 
+         * let's support only one of app, for simplicity sake, 
+         * so we don't need to bother about the dbus owner info. 
+        */
+        if (this._isInstance(name)) { // 
+            return; 
+        }
+
+        LOG.init(`name=${name}, old_owner=${old_instance_id}, new_owner=${new_instance_id}`);
+
+        if (new_instance_id && !old_instance_id)
+            this._addPlayer(name);
+        else if (old_instance_id && !new_instance_id)
+            this._removePlayer(name);
+    }
+
+    _onPlayerAction(display, something, keybinding) {
+        if(!this._activePlayer) {
+            return;
+        }
+        let action = keybinding?.get_name()?.split('-')[2];
+		LOG.init(action);
+        switch (keybinding.get_name()) {
+            case 'player-controller-Next':
+                this._activePlayer.NextRemote();
+                break;
+            case 'player-controller-Prev':
+                this._activePlayer.PreviousRemote();
+                break;
+    
+            case 'player-controller-Play':
+                this._activePlayer.PlayPauseRemote();
+                break;
+                    
+            case 'player-controller-Stop':
+                this._activePlayer.StopRemote();
+                break;
+        }
+    }
+    
+    _isInstance(name) {
+        return /org\.mpris\.MediaPlayer2\..+?\.instance[0-9]+/.test(name);
+    }
+
+    _addPlayer(name) {
+        LOG.init(name);
+        if (this._players.includes(name)) return; // not dealing with instances
+        this._players.push(name);
+        this.emit('player-opened', name);
+        this._changeActivePlayer(name);
+		LOG.done();
+    }
+    _removePlayer(name) {
+        LOG.init(this._players);
+        this._players = this._players.filter(a => a != name);
+        LOG.debug(this._players);
+        this.emit('player-closed', name);
+        this._changeActivePlayer(this._players[this._players.length - 1]); //undefined if none left
+		LOG.done();
+    }
+
+    _changeActivePlayer(name) {
+        LOG.init(name);
+        if (!name) {
+            this._activePlayer = undefined;
+            return;
+        }
+        this._activePlayer = Interfaces.getDBusProxyWithOwner(
+            MEDIA_PLAYER_2_PLAYER_NAME,
+            name
+        );
+        this.emit('player-changed', name);
+		LOG.done();
     }
 
     destroy() {
-        ["Next", "Prev", "Play", "Stop"].forEach((action)=> {
-    		Main.keybindingManager.removeHotKey(`player-${action}-${this.instance_id}`);
-        })
-        this._dbus.disconnectSignal(this._ownerChangedId);
+        PLAYER_ACTIONS.forEach((action)=> {
+			Main.keybindingManager.removeHotKey(`player-controller-${action}`);
+        })					
+        this._dbus.disconnectSignal(this._DBusSignalID);
     }
 }
 Signals.addSignalMethods(MediaPlayerController.prototype);
-
-class MediaPlayer {
-    constructor(busname, owner) {
-        this._owner = owner;
-        this._busName = busname;
-        this._name = busName.match(name_regex)[1];
-        this.menu = new MediaPlayerMenuItem(this.name, owner);
-
-
-        Interfaces.getDBusProxyWithOwnerAsync(
-            MEDIA_PLAYER_2_PLAYER_NAME,
-            this._busName,
-            (proxy, error) => {
-                this._mediaServerPlayer = proxy;
-            }
-        );
-    }
-
-    Prev() {
-        this._mediaServerPlayer.PreviousRemote();
-    }
-
-    Play() {
-        this._mediaServerPlayer.PlayPauseRemote();
-    }
-
-    Stop() {
-        this._mediaServerPlayer.StopRemote();
-    }
-
-    Next() {
-        this._mediaServerPlayer.NextRemote();
-    }
-
-}
-Signals.addSignalMethods(MediaPlayer.prototype);
