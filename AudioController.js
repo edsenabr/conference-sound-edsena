@@ -3,7 +3,7 @@ const Gio = imports.gi.Gio;
 const Main = imports.ui.main;
 const SignalManager = imports.misc.signalManager.SignalManager;
 const {LogUtils} = require(`./LogUtils`)
-const LOG = new LogUtils();
+const LOG = new LogUtils(LogUtils.levels.Info, 'AudioController');
 
 const CINNAMON_DESKTOP_SOUNDS = "org.cinnamon.desktop.sound";
 const MAXIMUM_VOLUME_KEY = "maximum-volume";
@@ -74,7 +74,6 @@ class AudioController {
 
 	toggle_setup(type) {
 		let device = this._detect_devices(type);
-		global.log(device);
 		if (!device) {
 			LOG.error(`${type} not found!!!`)
 			// send notification
