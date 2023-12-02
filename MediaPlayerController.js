@@ -1,12 +1,10 @@
 const Interfaces = imports.misc.interfaces;
 const Main = imports.ui.main;
 const Lang = imports.lang;
-const PopupMenu = imports.ui.popupMenu;
-const St = imports.gi.St;
-const Cinnamon = imports.gi.Cinnamon;
+const {SignalManager} = imports.misc.signalManager;
+const Signals = imports.signals;
 
 const MEDIA_PLAYER_2_PLAYER_NAME = "org.mpris.MediaPlayer2.Player";
-const ICON_SIZE = 28;
 const KNOWN_PLAYERS = [
     "banshee",
     "vlc",
@@ -17,11 +15,12 @@ const KNOWN_PLAYERS = [
 const name_regex = /^org\.mpris\.MediaPlayer2\.(.+)/;
 
 
-class MediaPlayer {
-	constructor(applet){
+class MediaPlayerController {
+	constructor(){
+		this._signalManager = new SignalManager(null);
         this._players = {};
         this._activePlayer = null;
-        this._applet = applet;
+        // this._applet = applet;
 
         ["Next", "Prev", "Play", "Stop"].forEach((action)=> {
             Main.keybindingManager.addHotKey(`player-${action}-${this.instance_id}`, `Audio${action}`, Lang.bind(this, () => {
@@ -67,18 +66,6 @@ class MediaPlayer {
         });
     }
 
-    _updatePlayerMenuItems() {
-        for (let i in this._players) {
-            let player = this._players[i];
-            player.menu.setShowDot(player._owner === this._activePlayer);
-        }
-
-        if(this._applet._chooseActivePlayerItem.menu.numMenuItems <= 1) {
-            this._applet._chooseActivePlayerItem.actor.hide();
-        } else {
-            this._applet._chooseActivePlayerItem.actor.show();
-        }
-    }
     
     _isInstance(busName) {
         // MPRIS instances are in the form
@@ -97,34 +84,28 @@ class MediaPlayer {
             else
                 return;
         } else if (owner) {
-            let player = new Player(busName, owner);
-            let appsys = Cinnamon.AppSystem.get_default();
+            let player = new MediaPlayer(busName, owner);
+            
+            // isso aqui deveria virar sinal tb
 
-            let name = busName.match(name_regex)[1];
-            let app = appsys.lookup_app(`${name}.desktop`);
-            player.menu = new MediaPlayerMenuItem(app, owner);
-            player.menu.activate = () => this._switchPlayer(player._owner);
-
-            this._applet._chooseActivePlayerItem.menu.addMenuItem(player.menu);
+            // this._applet._chooseActivePlayerItem.menu.addMenuItem(player.menu);
             this._players[owner] = player;
             this._changeActivePlayer(owner);
-            this._updatePlayerMenuItems();
-
+            this.emit('player-opened', player.menu);
         }
     }
 
     _switchPlayer(owner) {
         if(this._players[owner]) {
             this._changeActivePlayer(owner);
-            this._updatePlayerMenuItems();
         } else {
             this._removePlayerItem(owner);
-            this._updatePlayerMenuItems();
         }
     }
 
     _removePlayer(busName, owner) {
         if (this._players[owner] && this._players[owner]._busName == busName) {
+            this.emit('player-closed', this._players[owner].menu);
             this._players[owner].menu.destroy();
             delete this._players[owner];
 
@@ -135,7 +116,6 @@ class MediaPlayer {
                     break;
                 }
             }
-            this._updatePlayerMenuItems();
         }
     }
 
@@ -160,12 +140,15 @@ class MediaPlayer {
         this._dbus.disconnectSignal(this._ownerChangedId);
     }
 }
+Signals.addSignalMethods(MediaPlayerController.prototype);
 
-class Player {
+class MediaPlayer {
     constructor(busname, owner) {
         this._owner = owner;
         this._busName = busname;
-        this._name = busname.match(/^org\.mpris\.MediaPlayer2\.(.+)/)[1];
+        this._name = busName.match(name_regex)[1];
+        this.menu = new MediaPlayerMenuItem(this.name, owner);
+
 
         Interfaces.getDBusProxyWithOwnerAsync(
             MEDIA_PLAYER_2_PLAYER_NAME,
@@ -193,12 +176,4 @@ class Player {
     }
 
 }
-
-class MediaPlayerMenuItem extends PopupMenu.PopupBaseMenuItem {
-    constructor(app, owner) {
-        super({});
-        this._owner = owner;
-        this.addActor(app.create_icon_texture(ICON_SIZE), { expand: false, span: 0 });
-        this.addActor(new St.Label({ text: app.get_name() }));
-    }
-}
+Signals.addSignalMethods(MediaPlayer.prototype);

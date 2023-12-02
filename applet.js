@@ -7,7 +7,7 @@ const PopupMenu = imports.ui.popupMenu;
 const St = imports.gi.St;
 const {VolumeSlider} = require('./VolumeSlider');
 const {MultiIconApplet} = require('./MultiIconApplet');
-const {MediaPlayer} = require('./MediaPlayer');
+const {MediaPlayerController} = require('./MediaPlayerController');
 const {SignalManager} = imports.misc.signalManager;
 const {AudioController} = require('./AudioController');
 const {LogUtils} = require(`./LogUtils`)
@@ -16,8 +16,7 @@ const MK = imports.gi.CDesktopEnums.MediaKeyType;
 const XF86AudioMicMute = `media-keys-${MK.MIC_MUTE}`;
 const XF86AudioLowerVolume = `media-keys-${MK.VOLUME_DOWN}`;
 const XF86AudioRaiseVolume = `media-keys-${MK.VOLUME_UP}`;
-
-const VOLUME_ADJUSTMENT_STEP = 0.05; /* Volume adjustment step in % */
+const {MediaPlayerMenuItem} = require('./MediaPlayerMenuItem');
 
 class SimpleSoundApplet extends MultiIconApplet {
 	constructor(metadata, orientation, panelHeight, instanceId) {
@@ -37,7 +36,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 		this._global_keybindings = this._setKeybindings();
 
-		this._player = new MediaPlayer(this);
+		this._player = new MediaPlayerController();
 	}
 
 
@@ -218,7 +217,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 	_setDefaultDevice(emmitter, type){
 		this._updateUi(type);
-	}
+	    }
 
 }
 
