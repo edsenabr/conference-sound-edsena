@@ -2,33 +2,33 @@ const Applet = imports.ui.applet;
 const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 const {LogUtils} = require(`./LogUtils`)
-const LOG = new LogUtils(false);
+const LOG = new LogUtils(LogUtils.levels.Info, 'MultiIconApplet');
 
 
 class MultiIconApplet extends imports.ui.applet.Applet {
 	constructor(orientation, panel_height, instance_id, icons) {
 			super(orientation, panel_height, instance_id);
-			LOG.info('constructor::init');
+			LOG.init();
 			this._applet_icon_boxes = new Array(icons.lengh);   //array of containers
 			this._applet_icons = new Array(icons.lengh);        //array of icons
 			icons.forEach(icon => {
 				this._applet_icon_boxes[icon] = this._init_icon_box();
 			});
-			LOG.info('constructor::done');
+			LOG.done();
 	}
 
 	_init_icon_box() {
-		LOG.info('_init_icon_box::init');
+		LOG.init();
 		const box = new St.Bin();
 		box.set_fill(true,true);
 		box.set_alignment(St.Align.MIDDLE,St.Align.MIDDLE);
 		this.actor.add(box);		
-		LOG.info('_init_icon_box::done');
+		LOG.done();
 		return box;
 	}
 
 	_ensureIcon(name) {
-		LOG.info(`_ensureIcon::init for -> ${name}`);
+		LOG.init(name);
 		if (!this._applet_icons[name] ||
 				!(this._applet_icons[name] instanceof St.Icon))
 				this._applet_icons[name] = new St.Icon({
@@ -36,7 +36,7 @@ class MultiIconApplet extends imports.ui.applet.Applet {
 						style_class: 'applet-icon'
 				});
 		this._applet_icon_boxes[name].set_child(this._applet_icons[name]);
-		LOG.info('_ensureIcon::done');
+		LOG.done();
 		return this._applet_icons[name];
 	}
 
@@ -48,12 +48,12 @@ class MultiIconApplet extends imports.ui.applet.Applet {
 	}
 
 	set_applet_icon_symbolic_name (name, icon_name) {
-		LOG.info(`set_applet_icon_symbolic_name::init for -> ${name}`);
+		LOG.init(name);
 		let icon = this._ensureIcon(name);
 		icon.set_icon_name(icon_name);
 		icon.set_icon_type(St.IconType.SYMBOLIC);
 		this._setStyle(icon);
-		LOG.info('set_applet_icon_symbolic_name::done');
+		LOG.done();
 	}
 
 	set_applet_icon_path (name, icon_path) {
@@ -65,7 +65,7 @@ class MultiIconApplet extends imports.ui.applet.Applet {
 					icon.set_icon_type(St.IconType.FULLCOLOR);
 					this._setStyle(icon);
 			} catch (e) {
-					LOG.info(e);
+					LOG.error(e);
 			}
 	}
 
@@ -77,7 +77,7 @@ class MultiIconApplet extends imports.ui.applet.Applet {
 					icon.set_icon_type(St.IconType.SYMBOLIC);
 					this._setStyle(icon);
 			} catch (e) {
-					LOG.info(e);
+					LOG.error(e);
 			}
 	}
 
