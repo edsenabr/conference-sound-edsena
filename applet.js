@@ -17,8 +17,12 @@ const XF86AudioMicMute = `media-keys-${MK.MIC_MUTE}`;
 const XF86AudioLowerVolume = `media-keys-${MK.VOLUME_DOWN}`;
 const XF86AudioRaiseVolume = `media-keys-${MK.VOLUME_UP}`;
 const {MediaPlayerMenuItem} = require('./MediaPlayerMenuItem');
+const Extension = imports.ui.extension;
+const UUID = "conference-sound-edsena";
 
 class SimpleSoundApplet extends MultiIconApplet {
+	HEADSET_NOT_AVAILABLE_ICON = Gio.Icon.new_for_string(Extension.getExtension(UUID).dir.get_child("audio-headset-not-available-symbolic.svg").get_path());
+
 	constructor(metadata, orientation, panelHeight, instanceId) {
 		super(orientation, panelHeight, instanceId, ['source', 'sink']);
 		this._metadata = metadata;
@@ -39,6 +43,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._mediaController = new MediaPlayerController();
 		this._setupListeners();
 	}
+
+	/** applet methods */
 
 
 	_drawMenu(orientation) {
@@ -66,8 +72,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-		this.menu.addMenuItem(this._drawSelection("Headset"));
-		this.menu.addMenuItem(this._drawSelection("Speakers"));
+		this.menu.addMenuItem(this._drawDeviceSelection("Headset"));
+		this.menu.addMenuItem(this._drawDeviceSelection("Speakers"));
 
 		this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -83,7 +89,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 
 	}
 
-	_drawSelection(type){
+	_drawDeviceSelection(type){
 		let device = new PopupMenu.PopupMenuItem(type);
 		let bin = new St.Bin({ x_align: St.Align.END, style_class: 'popup-active-menu-item' });
 		device.addActor(bin, { expand: false, span: -1, align: St.Align.END });
@@ -112,6 +118,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._signalManager.connect(this._controller, 'default-changed', this._setDefaultDevice, this, true);
 		this._signalManager.connect(this._controller, 'control-state-changed', this._onAudioControllerStateChanged, this, true);
 		this._signalManager.connect(this._controller, 'change-mute', this._onMutedChanged, this, true);
+		this._signalManager.connect(this._controller, 'change-failed', Main.osdWindowManager.show.bind(Main.osdWindowManager, -1, this.HEADSET_NOT_AVAILABLE_ICON, undefined));
+		
 
 		// media controller integration
 		this._signalManager.connect(this._mediaController, 'player-changed', this._onPlayerChanged, this);
@@ -121,8 +129,8 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	_setKeybindings() {
-		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", Lang.bind(this, () => this._controller.toggle_setup("Headset")));
-		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", Lang.bind(this, () => this._controller.toggle_setup("Speakers")));
+		Main.keybindingManager.addHotKey("use-headset-" + this.instance_id, "<Super>h", this._controller.toggle_setup.bind(this._controller, "Headset"));
+		Main.keybindingManager.addHotKey("use-speakers-" + this.instance_id, "<Super>s", this._controller.toggle_setup.bind(this._controller, "Speakers"));
 
 		let keybindings = new Map ([
 			[XF86AudioMicMute, undefined],
@@ -144,6 +152,11 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._controller.destroy();
 	}
 
+	on_applet_clicked(event) {
+		this.menu.toggle();
+	}
+
+	/** AudioController methods  */
 
 	_updateTooltip(controller, status) {
 		let source = Math.round(status.source.percentage / status.source.mark * 100) + "%";
@@ -188,10 +201,6 @@ class SimpleSoundApplet extends MultiIconApplet {
 		this._applet_icons[direction].style = style;
 		this._volume_sliders[direction].icon.style = style;
 
-	}
-
-	on_applet_clicked(event) {
-		this.menu.toggle();
 	}
 
 	_onScrollEvent(actor, event) {

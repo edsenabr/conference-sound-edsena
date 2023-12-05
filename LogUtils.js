@@ -54,15 +54,15 @@ class LogUtils {
 	}
 
 
-	_log(level, ...args) {
-		level = LogUtils.levels[level];
+	_log(level_name, ...args) {
+		let level = LogUtils.levels[level_name];
 		if ( level > this._level) return;
 		let stack = this._getStack();
 		if (!stack.startsWith(`::${this._name}`))
 			stack = `::${this._name}${stack}`;
 		
 		let header = `${level == LogUtils.levels.Debug ? 'DEBUG' : 'LOG'}${stack}`;
-		let method = global[`log${[LogUtils.levels.Debug, LogUtils.levels.Info].includes(level) ? '' : level}`];
+		let method = global[`log${[LogUtils.levels.Debug, LogUtils.levels.Info].includes(level) ? '' : level_name}`];
 		let message;
 		if (args.length == 0)
 			method(header);

@@ -10,6 +10,7 @@ const MAXIMUM_VOLUME_KEY = "maximum-volume";
 const Signals = imports.signals;
 var VOLUME_ADJUSTMENT_STEP = 0.05; /* Volume adjustment step in % */
 
+const HEADSET_PRIORITIES = ['Buds2', 'Plantronics', 'SteelSeries'];
 
 class AudioController {
 	constructor(){
@@ -73,10 +74,11 @@ class AudioController {
 	}
 
 	toggle_setup(type) {
+		LOG.init();
 		let device = this._detect_devices(type);
 		if (!device) {
 			LOG.error(`${type} not found!!!`)
-			// send notification
+			this.emit('change-failed');
 			return;
 		}
 		if (device.source) this._control.change_input(device.source);
@@ -94,10 +96,9 @@ class AudioController {
 				(map[type][device.origin] = map[type][device.origin] ?? {})[direction] = device;
 				return map;
 			}, {"Headset": {}, "Speakers": {}});
-
 		if (type == "Headset") {
 			return devices.Headset [
-				['Plantronics', 'SteelSeries'].find(name => devices.Headset[name])
+				HEADSET_PRIORITIES.find(name => devices.Headset[name])
 			];
 	
 		} else {
