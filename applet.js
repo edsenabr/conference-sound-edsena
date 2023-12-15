@@ -2,7 +2,7 @@ const Applet = imports.ui.applet;
 const Clutter = imports.gi.Clutter;
 const Gio = imports.gi.Gio;
 const Main = imports.ui.main;
-const Lang = imports.lang;
+const Config = imports.misc.config;
 const PopupMenu = imports.ui.popupMenu;
 const St = imports.gi.St;
 const {VolumeSlider} = require('./VolumeSlider');
@@ -13,9 +13,9 @@ const {AudioController} = require('./AudioController');
 const {LogUtils} = require(`./LogUtils`)
 const LOG = new LogUtils(LogUtils.levels.Info, 'SimpleSoundApplet');
 const MK = imports.gi.CDesktopEnums.MediaKeyType;
-const XF86AudioMicMute = `media-keys-${MK.MIC_MUTE}`;
-const XF86AudioLowerVolume = `media-keys-${MK.VOLUME_DOWN}`;
-const XF86AudioRaiseVolume = `media-keys-${MK.VOLUME_UP}`;
+const XF86AudioMicMute = MK.MIC_MUTE;
+const XF86AudioLowerVolume = MK.VOLUME_DOWN;
+const XF86AudioRaiseVolume = MK.VOLUME_UP;
 const {MediaPlayerMenuItem} = require('./MediaPlayerMenuItem');
 const Extension = imports.ui.extension;
 const UUID = "conference-sound-edsena";
@@ -45,6 +45,16 @@ class SimpleSoundApplet extends MultiIconApplet {
 	}
 
 	/** applet methods */
+
+	on_global_media_key_pressed(action) {
+		// up to 5.2 this function used to have 5 parameters.
+		if (Config.PACKAGE_VERSION.startsWith("5.2")) {
+			Main.keybindingManager.on_global_media_key_pressed(null, null, null, null, action);
+		} else {
+			Main.keybindingManager.on_global_media_key_pressed(null, null, null, action);
+
+		}
+	}
 
 
 	_drawMenu(orientation) {
@@ -169,7 +179,7 @@ class SimpleSoundApplet extends MultiIconApplet {
 	
 	_onButtonPressEvent (actor, event) {
 		if (event.get_button() == 2) {
-			Main.keybindingManager.invoke_keybinding_action_by_id(this._global_keybindings.get(XF86AudioMicMute));
+			this.on_global_media_key_pressed(XF86AudioMicMute);
 			return Clutter.EVENT_STOP;
 		}
 		return Applet.Applet.prototype._onButtonPressEvent.call(this, actor, event);
@@ -209,7 +219,7 @@ class SimpleSoundApplet extends MultiIconApplet {
             return Clutter.EVENT_PROPAGATE;
         }
 		let key = (event.get_scroll_direction() == Clutter.ScrollDirection.UP) ? XF86AudioRaiseVolume: XF86AudioLowerVolume;
-		Main.keybindingManager.invoke_keybinding_action_by_id(this._global_keybindings.get(key));
+		this.on_global_media_key_pressed(key);
 	}
 
 	_updateUi(type) {
